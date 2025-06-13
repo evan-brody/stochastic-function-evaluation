@@ -35,7 +35,7 @@ class NAE:
 
     def update_expected_cost(self):
         self.cost = 1
-        prOnlySeen = np.array([ p for p in self.distribution[self.strategy[0]] ])
+        prOnlySeen = np.array([ np.float32(p) for p in self.distribution[self.strategy[0]] ], dtype=np.float32)
         for test in self.strategy[1:]:
             self.cost += sum(prOnlySeen)
             for c, p in enumerate(self.distribution[test]):
