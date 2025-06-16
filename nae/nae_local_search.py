@@ -35,7 +35,7 @@ class NAE:
 
     def update_expected_cost(self):
         self.cost = 1
-        prOnlySeen = np.array([ np.float32(p) for p in self.distribution[self.strategy[0]] ], dtype=np.float32)
+        prOnlySeen = np.array([ p for p in self.distribution[self.strategy[0]] ], dtype=np.longdouble)
         for test in self.strategy[1:]:
             self.cost += sum(prOnlySeen)
             for c, p in enumerate(self.distribution[test]):
@@ -47,29 +47,65 @@ class NAE:
         best_swap = None
         best_swap_improvement = 0
         for i in range(self.n - 1):
-            self.strategy[i], self.strategy[i + 1] = self.strategy[i + 1], self.strategy[i]
-            old_cost = self.cost
-            self.update_expected_cost()
-
-            improvement = old_cost - self.cost
-            if improvement > best_swap_improvement:
-                best_swap = (i, i + 1)
-                best_swap_improvement = improvement
-
-            # Undo the swap
-            self.strategy[i], self.strategy[i + 1] = self.strategy[i + 1], self.strategy[i]
-            self.cost = old_cost
+            for j in range(i + 1, i + 2):
+                improvement = self.gain_from_swap(i, j)
+                if improvement > best_swap_improvement:
+                    best_swap = (i, j)
+                    best_swap_improvement = improvement
         
         if best_swap is not None:
+            # Actually perform the swap
             self.strategy[best_swap[0]], self.strategy[best_swap[1]] \
                 = self.strategy[best_swap[1]], self.strategy[best_swap[0]]
             self.cost = self.cost - best_swap_improvement
+            self.update_tables_after_swap(*best_swap)
             return True
         
         return False
     
+    def init_local_search_tables(self):
+        # pr_only[c][i] = Pr[only seen color c just afte rolling (i + 1)th die]
+        self.pr_only = np.ndarray(shape=(self.d, self.n))
+
+        for c in range(self.d):
+            self.pr_only[c][0] = self.distribution[self.strategy[0]][c]
+        
+        for turn in range(1, self.n):
+            for c in range(self.d):
+                self.pr_only[c][turn] = self.pr_only[c][turn - 1] * self.distribution[self.strategy[turn]][c]
+        
+        self.sum_from_to = np.zeros(shape=(self.d, self.n, self.n))
+        for c in range(self.d):
+            for i in range(self.n):
+                self.sum_from_to[c][i][i] = self.pr_only[c][i]
+
+                for j in range(i + 1, self.n):
+                    self.sum_from_to[c][i][j] = self.sum_from_to[c][i][j - 1] + self.pr_only[c][j]
+    
+    def gain_from_swap(self, i, j):
+        gain = 0
+        for c in range(self.d):
+            change_factor = self.distribution[self.strategy[j]][c] / self.distribution[self.strategy[i]][c]
+            
+            gain += self.sum_from_to[c][i][j] * (1 - change_factor) # = sum[i][j] - sum[i][j] * change_factor
+        
+        return gain
+    
+    def update_tables_after_swap(self, i, j):
+        self.init_local_search_tables()
+        return
+        for c in range(self.d):
+            change_factor = self.distribution[self.strategy[j]][c] / self.distribution[self.strategy[i]][c]
+            for ii in range(i, j):
+                self.pr_only[c][ii] *= change_factor
+            
+            for ii in range(j):
+                for jj in range(max(i, ii), j):
+                    self.sum_from_to[c][ii][jj] *= change_factor
+    
     # Performs local search until hitting a local minimum
     def local_search(self):
+        self.init_local_search_tables()
         step_count = 0
         while self.local_step():
             step_count += 1
@@ -78,17 +114,19 @@ class NAE:
 
     def shuffle_local_search(self):
         self.shuffle_strat()
-        self.local_search()
-        
-        print(f"Minimum: {self.strategy}")
-        print(f"Minimum cost: {self.cost}")
+        self.update_expected_cost()
+        step_count = self.local_search()
+
+        # print(f"Minimum cost: {self.cost}")
+
+        return step_count
 
 ITER_COUNT = 100
 def avg_local_steps(n):
     total_step_count = 0
     for _ in range(ITER_COUNT):
         nae = NAE(n, 3)
-        total_step_count += nae.local_search()
+        total_step_count += nae.shuffle_local_search()
     
     return total_step_count / ITER_COUNT
 

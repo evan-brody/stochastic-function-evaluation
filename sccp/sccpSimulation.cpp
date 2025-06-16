@@ -1,5 +1,6 @@
 // @file    sccpSimulation.cpp
 // @author  Evan Brody
+// @brief   Environment for simulating (nonadaptive) strategies for the stochastic coupon collection problem.
 
 #include <random>
 #include <iostream>
@@ -7,10 +8,12 @@
 #include <limits>
 #include <algorithm>
 
-#define D 3
-#define N 10
+#define D 4
+#define N 7
 
 // #define DEBUG
+
+typedef double SCCPFloat;
 
 std::ostream& roundPrint(std::ostream& os, double num) {
     os << std::round(num * 100.0f) * 0.01f;
@@ -32,7 +35,7 @@ class SCCP {
     // Represents a nonadaptive strategy
     struct NAStrategy {
         unsigned order[N];
-        double cost = N + 1;
+        SCCPFloat cost = N + 1;
     };
 public:
     SCCP() {
@@ -75,20 +78,20 @@ public:
         return os;
     }
 
-    double expectedCost(const unsigned* order) const {
+    SCCPFloat expectedCost(const unsigned* order) const {
         // There will be 2^d states in our Markov chain
         constexpr std::uint64_t numStates = 1 << D;
         constexpr std::uint64_t stateFinished = numStates - 1;
-        double stateVector[N + 1][numStates]; // Represents the state of the system just after test i
+        SCCPFloat stateVector[N + 1][numStates]; // Represents the state of the system just after test i
         stateVector[0][0] = 1.0f; // We begin in state 0 (no colors collected)
         for (std::size_t i = 1; i < numStates; ++i) {
             stateVector[0][i] = 0.0f;
         }
 
-        double E = 0.0f;
+        SCCPFloat E = 0.0f;
         for (std::size_t i = 1; i < N + 1; ++i) {
             unsigned test = order[i - 1];
-            const double* testDist = distribution[test];
+            const SCCPFloat* testDist = distribution[test];
 
             stateVector[i][0] = 0.0f; // No chance we have no colors after step 1
             for (std::size_t state = 1; state < numStates; ++state) {
@@ -136,7 +139,7 @@ public:
 
         // Find optimal ordering by iterating through all strategies
         do {
-            double currentCost = expectedCost(currentStrat);
+            SCCPFloat currentCost = expectedCost(currentStrat);
             if (currentCost < OPT.cost) {
                 OPT.cost = currentCost;
                 for (std::size_t i = 0; i < N; ++i) {
@@ -165,7 +168,7 @@ public:
             calculateGreedyWithFirstTest(currentGreedy, i);
 
             // Is it the best so far ?
-            double thisCost = expectedCost(currentGreedy);
+            SCCPFloat thisCost = expectedCost(currentGreedy);
             if (thisCost < greedy.cost) { // If it's the best so far, copy over its info
                 greedy.cost = thisCost;
                 for (std::size_t j = 0; j < N; ++j) {
@@ -185,35 +188,37 @@ public:
         return os;
     }
 
-    double evalTest(double** stateVector, unsigned candidateTest, std::size_t turn) {
-        constexpr std::uint64_t numStates = 1 << D;
-        constexpr std::uint64_t stateFinished = numStates - 1;
+    // Method below most likely useless
 
-        const double* candDist = distribution[candidateTest];
-        double eval = 0.0f;
+    // SCCPFloat evalTest(SCCPFloat** stateVector, unsigned candidateTest, std::size_t turn) {
+    //     constexpr std::uint64_t numStates = 1 << D;
+    //     constexpr std::uint64_t stateFinished = numStates - 1;
 
-        for (std::size_t state = 1; state < numStates; ++state) {
-            for (std::size_t color = 1; color <= (1 << (D - 1)); color <<= 1) {
-                std::uint64_t gainedColorBit = color & state;
-                if (0 == gainedColorBit) { continue; }
+    //     const SCCPFloat* candDist = distribution[candidateTest];
+    //     SCCPFloat eval = 0.0f;
 
-                std::uint64_t stateMinusColor = color ^ state;
-                std::uint64_t gainedColor = log2(gainedColorBit);
+    //     for (std::size_t state = 1; state < numStates; ++state) {
+    //         for (std::size_t color = 1; color <= (1 << (D - 1)); color <<= 1) {
+    //             std::uint64_t gainedColorBit = color & state;
+    //             if (0 == gainedColorBit) { continue; }
 
-                // Pr[got this color on this roll]
-                stateVector[turn][state] += 1; // candDist[gainedColor]; // * stateVector[turn - 1][stateMinusColor];
+    //             std::uint64_t stateMinusColor = color ^ state;
+    //             std::uint64_t gainedColor = log2(gainedColorBit);
 
-                // Pr[had this color already, got it on this roll]
-                stateVector[turn][state] += candDist[gainedColor] * stateVector[turn - 1][state];
-            }
+    //             // Pr[got this color on this roll]
+    //             stateVector[turn][state] += 1; // candDist[gainedColor]; // * stateVector[turn - 1][stateMinusColor];
 
-            if (state != stateFinished) {
-                eval += stateVector[turn][state];
-            }
-        }
+    //             // Pr[had this color already, got it on this roll]
+    //             stateVector[turn][state] += candDist[gainedColor] * stateVector[turn - 1][state];
+    //         }
 
-        return eval;
-    }
+    //         if (state != stateFinished) {
+    //             eval += stateVector[turn][state];
+    //         }
+    //     }
+
+    //     return eval;
+    // }
 
     void calculateGreedyWithFirstTest(unsigned* order, unsigned first) {
         bool tested[N];
@@ -224,18 +229,19 @@ public:
         order[0] = first;
         tested[first] = true;
 
-        double prNotSeen[D];
+        SCCPFloat prNotSeen[D];
         for (std::size_t c = 0; c < D; ++c) {
             prNotSeen[c] = 1.0f - distribution[first][c];
         }
 
         for (std::size_t turn = 1; turn < N; ++turn) {
             unsigned bestTest = N;
-            double bestTestEval = std::numeric_limits<double>::max();
+            SCCPFloat bestTestEval = std::numeric_limits<SCCPFloat>::max();
+
             for (std::size_t candidate = 0; candidate < N; ++candidate) {
                 if (tested[candidate]) { continue; }
 
-                double eval = 0.0f;
+                SCCPFloat eval = 0.0f;
                 for (std::size_t c = 0; c < D; ++c) {
                     eval += prNotSeen[c] * (1.0f - distribution[candidate][c]);
                 }
@@ -248,12 +254,16 @@ public:
 
             order[turn] = bestTest;
             tested[bestTest] = true;
+
+            for (std::size_t c = 0; c < D; ++c) {
+                prNotSeen[c] *= 1.0f - distribution[bestTest][c];
+            }
         }
     }
 
 
 private:
-    double distribution[N][D];
+    SCCPFloat distribution[N][D];
     NAStrategy OPT;
     NAStrategy greedy;
 };

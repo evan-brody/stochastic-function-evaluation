@@ -9,7 +9,7 @@
 #include <cassert>
 
 #define D 7 // Sides on a die
-#define N 50 // Number of dice
+#define N 10 // Number of dice
 
 typedef double NAEfloat;
 
@@ -180,6 +180,9 @@ public:
         for (std::size_t i = 0; i < N; ++i) {
             // Generate the greedy strategy with this first test
             currentGreedy[0] = i;
+            for (std::size_t j = 1; j < N; ++j) {
+                currentGreedy[j] = N;
+            }
             generateGreedyWithFixedTests(currentGreedy);
 
             // Is it the best so far ?
@@ -444,6 +447,23 @@ public:
             }
         }
     }
+
+    void greedyAdaptive() {
+
+        for (std::size_t i = 0; i < N; ++i) {
+
+        }
+    }
+
+    double greedyAdaptiveFromFirstTest(unsigned first) {
+        bool tested[N];
+        for (std::size_t i = 0; i < N; ++i) {
+            tested[i] = false;
+        }
+        tested[first] = true;
+
+        return 0.0f;
+    }
 private:
     NAEfloat distribution[N][D];
     NAStrategy OPT;
@@ -451,20 +471,22 @@ private:
 
     NAEfloat prOnly[D][N];
     NAEfloat sumFromTo[D][N][N]; // Inclusive
+
+    NAEfloat EGreedyAdaptive;
 };
 
 int main() {
     NAE nae;
 
     for (std::size_t i = 0; i < 1; ++i) {
-        // nae.calculateOPT();
-        // nae.printOPT(std::cout) << '\n';
+        nae.calculateOPT();
+        nae.printOPT(std::cout) << '\n';
 
-        // nae.generateGreedy();
-        // nae.printGreedy(std::cout) << '\n';
+        nae.generateGreedy();
+        nae.printGreedy(std::cout) << '\n';
 
-        std::uint64_t stepCount = nae.localSearch();
-        std::cout << "Steps: " << stepCount << std::endl;
+        // std::uint64_t stepCount = nae.localSearch();
+        // std::cout << "Steps: " << stepCount << std::endl;
 
         nae.reset();
     }
