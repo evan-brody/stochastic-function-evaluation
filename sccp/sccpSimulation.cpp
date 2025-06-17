@@ -10,8 +10,13 @@
 #include <algorithm>
 #include <exception>
 
-#define D 2
-#define N 10
+constexpr std::uint64_t D = 3;      // Number of coupons
+constexpr std::uint64_t N = 10;     // Number of tests
+
+// When we're searching for the optimal strategy, we print our progress
+//      every OPT_SEARCH_PRINT permutations checked
+// Making it a power of 2 minus one allows for fast modulo via bitwise AND
+constexpr std::uint64_t OPT_SEARCH_PRINT = (1 << 20) - 1;
 
 // #define DEBUG
 
@@ -35,6 +40,24 @@ static inline std::uint64_t log2(const std::uint64_t x) {
       : "r" (x)
   );
   return y;
+}
+
+// https://stackoverflow.com/questions/8871204/count-number-of-1s-in-binary-representation
+static inline std::uint64_t bitCount(std::uint64_t u) {
+    std::uint64_t uCount;
+
+    uCount = u - ((u >> 1) & 033333333333) - ((u >> 2) & 011111111111);
+    return ((uCount + (uCount >> 3)) & 030707070707) % 63;
+}
+
+// Naive factorial function
+static inline constexpr std::uint64_t factorial(std::uint64_t n) {
+    std::uint64_t res = 1;
+    for (std::size_t i = 2; i <= n; ++i) {
+        res *= i;
+    }
+
+    return res;
 }
 
 class SCCP {
@@ -95,14 +118,20 @@ public:
         // There will be 2^d states in our Markov chain
         constexpr std::uint64_t numStates = 1 << D;
         constexpr std::uint64_t stateFinished = numStates - 1;
-        SCCPFloat stateVector[N + 1][numStates]; // Represents the state of the system just after test i
+
+        // Represents the state of the system just after test i
+        //      where no tests done is considered just after the 0th test
+        // Only goes up to N - 1 since we don't care about the state of the system
+        //      after the Nth test
+        SCCPFloat stateVector[N][numStates];
+
         stateVector[0][0] = 1.0f; // We begin in state 0 (no colors collected)
         for (std::size_t i = 1; i < numStates; ++i) {
             stateVector[0][i] = 0.0f;
         }
 
-        SCCPFloat E = 0.0f;
-        for (std::size_t i = 1; i < N + 1; ++i) {
+        SCCPFloat E = 1.0f; // Must do first test
+        for (std::size_t i = 1; i < N; ++i) {
             unsigned test = order[i - 1];
             const SCCPFloat* testDist = distribution[test];
 
@@ -110,18 +139,18 @@ public:
             for (std::size_t state = 1; state < numStates; ++state) {
                 stateVector[i][state] = 0.0f;
 
-                for (std::size_t color = 1; color <= (1 << (D - 1)); color <<= 1) {
-                    std::uint64_t gainedColorBit = color & state;
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = (1 << c);
+                    std::uint64_t gainedColorBit = colorBit & state;
                     if (0 == gainedColorBit) { continue; }
 
-                    std::uint64_t stateMinusColor = color ^ state;
-                    std::uint64_t gainedColor = log2(gainedColorBit);
+                    std::uint64_t stateMinusColor = colorBit ^ state;
 
                     // Pr[got this color on this roll]
-                    stateVector[i][state] += testDist[gainedColor] * stateVector[i - 1][stateMinusColor];
+                    stateVector[i][state] += testDist[c] * stateVector[i - 1][stateMinusColor];
 
                     // Pr[had this color already, got it on this roll]
-                    stateVector[i][state] += testDist[gainedColor] * stateVector[i - 1][state];
+                    stateVector[i][state] += testDist[c] * stateVector[i - 1][state];
                 }
 
                 if (state != stateFinished) {
@@ -151,8 +180,19 @@ public:
             currentStrat[i] = i;
         }
 
+        std::uint64_t checkedPermutations = 0;
+        constexpr std::uint64_t numPermutations = factorial(N);
+
         // Find optimal ordering by iterating through all strategies
         do {
+            if (0 == (++checkedPermutations & OPT_SEARCH_PRINT)) {
+                std::cout << "Checked " << checkedPermutations
+                          << " permutations out of " << numPermutations << ". ";
+
+                SCCPFloat percentDone = 100.0f * SCCPFloat(checkedPermutations) / numPermutations;
+                roundPrint(std::cout, percentDone) << "% complete.\t\t\t\r";
+            }
+
             SCCPFloat currentCost = expectedCost(currentStrat);
             if (currentCost < OPT.cost) {
                 OPT.cost = currentCost;
@@ -299,8 +339,12 @@ public:
             order[turn] = bestTest;
             tested[bestTest] = true;
 
-            stateDist[turn][0] = 0.0f; // Impossible to have no colors after the first test
+            // Impossible to have no colors after the first test
+            stateDist[turn][0] = 0.0f;
+
             // Move probability mass around the distribution accordingly
+            // NOTE: we are wasting a little bit of time by updating the table
+            //       after the last test is selected, but this shouldn't matter
             for (std::size_t state = 1; state < numStates; ++state) {
                 // Find all the colors this state has
                 for (std::size_t c = 0; c < D; ++c) {
@@ -327,7 +371,8 @@ private:
 };
 
 int main() {
-    for (std::size_t _ = 0; _ < 10; ++_) {
+    for (std::uint64_t _ = 0; _ < 10; ++_) {
+
         SCCP sccp;
 
         sccp.printDistribution(std::cout) << '\n';
@@ -337,6 +382,7 @@ int main() {
 
         sccp.calculateOPT();
         sccp.printOPT(std::cout) << '\n';
+
     }
 
     return 0;

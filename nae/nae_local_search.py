@@ -8,7 +8,7 @@ import itertools
 from mpmath import mp
 
 # Configure mp
-mp.dps = 200    # Decimal places used by mp.mpf
+mp.dps = 100     # Decimal places used by mp.mpf
 mp.pretty = True # Turn pretty-printing on
 
 # We use mp's floating point type
@@ -58,11 +58,11 @@ class NAE:
             for c, p in enumerate(self.distribution[test]):
                 pr_only_seen[c] *= p
 
-    # Performs one step of local search. The neighbourhood of the strategy
+    # Performs one step of local search. The neighborhood of the strategy
     # is defined as the set of strategies that can be formed swapping two
     # tests in the current strategy.
-    # Returns true if a better strategy is found in the neighbourhood, false otherwise
-    def local_step(self):
+    # Returns true if a better strategy is found in the neighborhood, false otherwise
+    def local_step_all_swaps(self):
         best_swap = None
         # Improvement should be greater than machine epsilon.
         # This is to prevent a bug where local search will continually make and undo
@@ -86,7 +86,7 @@ class NAE:
         
         return False
     
-    # Exactly the above function, but a strategy's neighbourhood is defined
+    # Exactly the above function, but a strategy's neighborhood is defined
     # as strategies that can be formed by swapping adjacent tests
     def local_step_adjacent_swaps(self):
         best_swap = None
@@ -156,30 +156,49 @@ class NAE:
         self.update_partial_sums()
     
     # Performs local search until hitting a local minimum
-    def local_search(self):
+    def local_search_all_swaps(self):
         self.init_local_search_tables()
         step_count = 0
-        while self.local_step():
+        while self.local_step_all_swaps():
             step_count += 1
-            if step_count > 10_000:
-                print(self.cost)
-                print(f"Performed {step_count} steps.")
+        
+        return step_count
+
+    # Same as above, but only searches adjacent swapss
+    def local_search_adjacent_swaps(self):
+        self.init_local_search_tables()
+        step_count = 0
+        while self.local_step_adjacent_swaps():
+            step_count += 1
         
         return step_count
 
     # Shuffles to a random strategy and starts the local search
-    def shuffle_local_search(self):
+    def shuffle_local_search_all_swaps(self):
         self.shuffle_strat()
-        step_count = self.local_search()
 
-        return step_count
+        return self.local_search_all_swaps()
+    
+    # Same as above, but only searches adjacent swaps
+    def shuffle_local_search_adjacent_swaps(self):
+        self.shuffle_strat()
+
+        return self.local_search_adjacent_swaps()
 
 ITER_COUNT = 100
-def avg_local_steps(n):
+def avg_local_steps_all_swaps(n):
     total_step_count = 0
     for _ in range(ITER_COUNT):
         nae = NAE(n, 3)
-        total_step_count += nae.shuffle_local_search()
+        total_step_count += nae.shuffle_local_search_all_swaps()
+    
+    return total_step_count / ITER_COUNT
+
+def avg_local_steps_adjacent_swaps(n):
+    total_step_count = 0
+    for _ in range(ITER_COUNT):
+        nae = NAE(n, 3)
+        total_step_count += nae.shuffle_local_search_adjacent_swaps()
     
     return total_step_count / ITER_COUNT
 
@@ -195,11 +214,12 @@ if __name__ == "__main__":
     xpoints = list(nrange)
     ypoints = []
     for n in nrange:
-        ypoints.append(avg_local_steps(n))
+        ypoints.append(avg_local_steps_all_swaps(n))
         print(f"Completed n = {n}")
 
     plt.plot(xpoints, ypoints, 'r-o')
-    plt.ylabel(f"Local Search Iterations, {mp.dps} Decimal Places")
+    plt.title(f"N = {ITER_COUNT}; precision = {mp.dps}")
+    plt.ylabel(f"Local Search Iterations")
     plt.xlabel("n")
     plt.xticks(tick_range) # Labels on the x-axis should be integers
 
