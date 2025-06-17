@@ -8,7 +8,7 @@ import itertools
 from mpmath import mp
 
 # Configure mp
-mp.dps = 100     # Decimal places used by mp.mpf
+mp.dps = 200     # Decimal places used by mp.mpf
 mp.pretty = True # Turn pretty-printing on
 
 # We use mp's floating point type
