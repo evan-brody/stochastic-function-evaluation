@@ -4,7 +4,12 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+import itertools
+from mpmath import mp
+mp.dps = 100 # Decimal places used by mp.mpf
+
+# We use mp's floating point type
+NAE_float = mp.mpf
 
 class NAE:
     RNG = np.random.default_rng()
@@ -23,8 +28,12 @@ class NAE:
     
     def init_distribution(self):
         # Generates random "markers" in [0, 1]
-        self.distribution = np.random.rand(self.n, self.d)
-        self.distribution[:, -1] = 1
+        # Doing it this way is necessary because we use the custom type NAE_float
+        self.distribution = np.empty(shape=(self.n, self.d), dtype=NAE_float)
+        for i, c in itertools.product(range(self.n), range(self.d)):
+            self.distribution[i, c] = NAE_float(np.random.rand())
+
+        self.distribution[:, -1] = NAE_float(1)
         self.distribution.sort(axis=1)
 
         # Calculate the space between markers, which will be the
@@ -34,74 +43,80 @@ class NAE:
                 die[i] -= die[i - 1]
 
     def update_expected_cost(self):
-        self.cost = 1
-        prOnlySeen = np.array([ p for p in self.distribution[self.strategy[0]] ], dtype=np.longdouble)
+        self.cost = NAE_float(1)
+        pr_only_seen = np.array([ p for p in self.distribution[self.strategy[0]] ], dtype=NAE_float)
         for test in self.strategy[1:]:
-            self.cost += sum(prOnlySeen)
+            self.cost += sum(pr_only_seen)
             for c, p in enumerate(self.distribution[test]):
-                prOnlySeen[c] *= p
+                pr_only_seen[c] *= p
 
     # Performs one step of local search
     # Local search is done by swapping adjacent tests
     def local_step(self):
         best_swap = None
-        best_swap_improvement = 0
+        # Improvement should be greater than machine epsilon.
+        # This is to prevent a bug where local search will continually make swaps that
+        # have an improvement on the order of 10^-17
+        best_swap_improvement = NAE_float(np.finfo(np.float64).eps)
         for i in range(self.n - 1):
-            for j in range(i + 1, i + 2):
+            for j in range(i + 1, self.n):
                 improvement = self.gain_from_swap(i, j)
                 if improvement > best_swap_improvement:
                     best_swap = (i, j)
                     best_swap_improvement = improvement
         
         if best_swap is not None:
-            # Actually perform the swap
-            self.strategy[best_swap[0]], self.strategy[best_swap[1]] \
-                = self.strategy[best_swap[1]], self.strategy[best_swap[0]]
-            self.cost = self.cost - best_swap_improvement
+            # Important that tables are updated before the swap instead of after
+            # since the code within assumes the strategy hasn't been updated yet
             self.update_tables_after_swap(*best_swap)
+            self.swap_tests(*best_swap)
+            self.cost -= best_swap_improvement
             return True
         
         return False
+
+    def swap_tests(self, i, j):
+        self.strategy[i], self.strategy[j] = self.strategy[j], self.strategy[i]
     
     def init_local_search_tables(self):
-        # pr_only[c][i] = Pr[only seen color c just afte rolling (i + 1)th die]
-        self.pr_only = np.ndarray(shape=(self.d, self.n))
+        # pr_only[c][i] = Pr[only seen color c just after rolling (i + 1)th die]
+        self.pr_only = np.ndarray(shape=(self.d, self.n), dtype=NAE_float)
 
         for c in range(self.d):
             self.pr_only[c][0] = self.distribution[self.strategy[0]][c]
         
         for turn in range(1, self.n):
             for c in range(self.d):
+                # Pr[we only had c on the last test] * Pr[we get c on this test]
                 self.pr_only[c][turn] = self.pr_only[c][turn - 1] * self.distribution[self.strategy[turn]][c]
         
-        self.sum_from_to = np.zeros(shape=(self.d, self.n, self.n))
+        self.sum_from_to = np.zeros(shape=(self.d, self.n, self.n), dtype=NAE_float)
+        self.update_partial_sums()
+    
+    def update_partial_sums(self):
         for c in range(self.d):
-            for i in range(self.n):
+            for i in range(self.n):                
                 self.sum_from_to[c][i][i] = self.pr_only[c][i]
 
                 for j in range(i + 1, self.n):
                     self.sum_from_to[c][i][j] = self.sum_from_to[c][i][j - 1] + self.pr_only[c][j]
     
     def gain_from_swap(self, i, j):
-        gain = 0
+        gain = NAE_float(0)
         for c in range(self.d):
             change_factor = self.distribution[self.strategy[j]][c] / self.distribution[self.strategy[i]][c]
-            
-            gain += self.sum_from_to[c][i][j] * (1 - change_factor) # = sum[i][j] - sum[i][j] * change_factor
+            # sum_from_to has inclusive indices, so use j - 1
+            gain += self.sum_from_to[c][i][j - 1] * (1 - change_factor) # = sum[i][j] - sum[i][j] * change_factor
         
         return gain
     
     def update_tables_after_swap(self, i, j):
-        self.init_local_search_tables()
-        return
         for c in range(self.d):
             change_factor = self.distribution[self.strategy[j]][c] / self.distribution[self.strategy[i]][c]
-            for ii in range(i, j):
-                self.pr_only[c][ii] *= change_factor
-            
-            for ii in range(j):
-                for jj in range(max(i, ii), j):
-                    self.sum_from_to[c][ii][jj] *= change_factor
+            for k in range(i, j):
+                self.pr_only[c][k] *= change_factor
+        
+        self.update_partial_sums()
     
     # Performs local search until hitting a local minimum
     def local_search(self):
@@ -109,15 +124,15 @@ class NAE:
         step_count = 0
         while self.local_step():
             step_count += 1
+            if step_count > 10_000:
+                print(self.cost)
+                print(f"Performed {step_count} steps.")
         
         return step_count
 
     def shuffle_local_search(self):
         self.shuffle_strat()
-        self.update_expected_cost()
         step_count = self.local_search()
-
-        # print(f"Minimum cost: {self.cost}")
 
         return step_count
 
@@ -137,10 +152,8 @@ def check_for_local_minima(n):
         print("---")
 
 if __name__ == "__main__":
-    # check_for_local_minima(10)
-
     nrange = range(10, 51)
-    tick_range = [ n for n in nrange if n % 10 == 0 ]
+    tick_range = nrange[::10]
     xpoints = list(nrange)
     ypoints = []
     for n in nrange:
@@ -148,7 +161,7 @@ if __name__ == "__main__":
         print(f"Completed n = {n}")
 
     plt.plot(xpoints, ypoints, 'r-o')
-    plt.ylabel("Local Search Iterations")
+    plt.ylabel(f"Local Search Iterations, {mp.dps} Decimal Places")
     plt.xlabel("n")
     plt.xticks(tick_range) # Labels on the x-axis should be integers
 

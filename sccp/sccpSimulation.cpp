@@ -1,20 +1,26 @@
 // @file    sccpSimulation.cpp
 // @author  Evan Brody
 // @brief   Environment for simulating (nonadaptive) strategies for the stochastic coupon collection problem.
+//          Assumed unit-cost everywhere
 
 #include <random>
 #include <iostream>
 #include <cstdint>
 #include <limits>
 #include <algorithm>
+#include <exception>
 
-#define D 4
-#define N 7
+#define D 2
+#define N 10
 
 // #define DEBUG
 
-typedef double SCCPFloat;
+typedef long double SCCPFloat;
 
+// Prints a number rounded to 2 decimal places
+// @param   os  The stream to print to
+// @param   num The number to print
+// @return      The stream that was passed in, now modified
 std::ostream& roundPrint(std::ostream& os, double num) {
     os << std::round(num * 100.0f) * 0.01f;
 
@@ -42,6 +48,7 @@ public:
         initDistribution();
     }
 
+    // Generates a distribution over the tests and colors
     void initDistribution() {
         std::random_device rd; // Seed for Mersenne Twister
         std::mt19937 mersenne(rd()); // Mersenne Twister
@@ -66,6 +73,9 @@ public:
         }
     }
 
+    // Prints information about the distribution over the tests and colors
+    // @param   os  The stream to print to
+    // @return      The stream that was passed in, now modified
     std::ostream& printDistribution(std::ostream& os) const {
         // Rows are dice, columns are colors
         for (std::size_t i = 0; i < N; ++i) {
@@ -78,6 +88,9 @@ public:
         return os;
     }
 
+    // Calculates the expected cost of a nonadaptive strategy
+    // @param   order   The strategy to evaluate
+    // @return          The strategy's expected cost
     SCCPFloat expectedCost(const unsigned* order) const {
         // There will be 2^d states in our Markov chain
         constexpr std::uint64_t numStates = 1 << D;
@@ -129,6 +142,7 @@ public:
         return E;
     }
 
+    // Brute-force search for an optimal strategy
     void calculateOPT() {
         unsigned currentStrat[N];
 
@@ -149,6 +163,9 @@ public:
         } while (std::next_permutation(currentStrat, currentStrat + N));
     }
 
+    // Prints information about OPT, assuming it's been found
+    // @param   os  The stream to print to
+    // @return      The stream that was passed in, now modified
     std::ostream& printOPT(std::ostream& os) const {
         os << "OPT:\n";
         for (std::size_t i = 0; i < N; ++i) {
@@ -159,6 +176,7 @@ public:
         return os;
     }
 
+    // Generates the nonadaptive greedy ordering
     void calculateGreedy() {
         unsigned currentGreedy[N];
 
@@ -178,6 +196,9 @@ public:
         }
     }
 
+    // Prints information about the generated greedy algorithm
+    // @param   os  The stream to print to
+    // @return      The stream that was passed in, now modified
     std::ostream& printGreedy(std::ostream& os) const {
         os << "Greedy:\n";
         for (std::size_t i = 0; i < N; ++i) {
@@ -188,79 +209,116 @@ public:
         return os;
     }
 
-    // Method below most likely useless
-
-    // SCCPFloat evalTest(SCCPFloat** stateVector, unsigned candidateTest, std::size_t turn) {
-    //     constexpr std::uint64_t numStates = 1 << D;
-    //     constexpr std::uint64_t stateFinished = numStates - 1;
-
-    //     const SCCPFloat* candDist = distribution[candidateTest];
-    //     SCCPFloat eval = 0.0f;
-
-    //     for (std::size_t state = 1; state < numStates; ++state) {
-    //         for (std::size_t color = 1; color <= (1 << (D - 1)); color <<= 1) {
-    //             std::uint64_t gainedColorBit = color & state;
-    //             if (0 == gainedColorBit) { continue; }
-
-    //             std::uint64_t stateMinusColor = color ^ state;
-    //             std::uint64_t gainedColor = log2(gainedColorBit);
-
-    //             // Pr[got this color on this roll]
-    //             stateVector[turn][state] += 1; // candDist[gainedColor]; // * stateVector[turn - 1][stateMinusColor];
-
-    //             // Pr[had this color already, got it on this roll]
-    //             stateVector[turn][state] += candDist[gainedColor] * stateVector[turn - 1][state];
-    //         }
-
-    //         if (state != stateFinished) {
-    //             eval += stateVector[turn][state];
-    //         }
-    //     }
-
-    //     return eval;
-    // }
-
+    // Calculates what the greedy algorithm would do after the specified first test
+    // @param   first   The test to start with
+    // @param   order   The initially empty ordering, which will be modified in-place
     void calculateGreedyWithFirstTest(unsigned* order, unsigned first) {
-        bool tested[N];
+        bool tested[N]; // Tracks which variables we've used so far
         for (std::size_t i = 0; i < N; ++i) {
             tested[i] = false;
         }
 
+        // First test is fixed, so track that it's been used
         order[0] = first;
         tested[first] = true;
 
-        SCCPFloat prNotSeen[D];
-        for (std::size_t c = 0; c < D; ++c) {
-            prNotSeen[c] = 1.0f - distribution[first][c];
+        // There are 2^d possible states, one for each subset of the colors
+        constexpr std::uint64_t numStates = 1 << D;
+
+        // stateDist[i][j] = Pr[we're in state j just after the ith test]
+        //                      where no tests conducted is considered just after th 0th test
+        //                      where order[0] is considered the 1st test
+        SCCPFloat stateDist[N + 1][numStates];
+
+        // We always start with no colors with probability 1
+        stateDist[0][0] = 1.0f;
+        for (std::size_t state = 1; state < numStates; ++state) {
+            stateDist[0][state] = 0.0f;
         }
 
-        for (std::size_t turn = 1; turn < N; ++turn) {
-            unsigned bestTest = N;
-            SCCPFloat bestTestEval = std::numeric_limits<SCCPFloat>::max();
+        // Initially clear the distribution for just after the first test
+        for (std::size_t state = 0; state < numStates; ++state) {
+            stateDist[1][state] = 0.0f;
+        }
 
+        // Move the probability mass according to the first test
+        for (std::size_t c = 0; c < D; ++c) {
+            // The state in which we only have c
+            std::uint64_t onlyThisColorState = 1 << c;
+
+            // Pr[get c from first test]
+            stateDist[1][onlyThisColorState] = distribution[first][c];
+        }
+
+        // Fill the ordering turn by turn
+        for (std::size_t turn = 1; turn < N; ++turn) {
+            // NOTE: the distribution over the states, at the current point in time,
+            //       will be given by stateDist[turn]
+            unsigned bestTest = N;
+            SCCPFloat bestTestEval = 0.0f; // Evaluation metric we use to compare between possible tests
+
+            // Iterate through candidate tests to find the best
             for (std::size_t candidate = 0; candidate < N; ++candidate) {
-                if (tested[candidate]) { continue; }
+                if (tested[candidate]) { continue; } // Skip if used already
 
                 SCCPFloat eval = 0.0f;
-                for (std::size_t c = 0; c < D; ++c) {
-                    eval += prNotSeen[c] * (1.0f - distribution[candidate][c]);
+                for (std::size_t state = 1; state < numStates; ++state) {
+                    SCCPFloat pmExiting = 0.0f; // The probability mass exiting this state
+
+                    // Add in the proportion of probability mass that will move out due to each color
+                    for (std::size_t c = 0; c < D; ++c) {
+                        if (!((1 << c) & state)) { // If the state needs color c
+                            pmExiting += distribution[candidate][c];
+                        }
+                    }
+
+                    // So far we've just added in proportions, now we need to
+                    // scale by the probability mass that's actually in the state
+                    pmExiting *= stateDist[turn][state];
+
+                    // Add to our eval
+                    eval += pmExiting;
                 }
 
-                if (eval < bestTestEval) {
+                // Larger eval is better
+                if (eval > bestTestEval) {
                     bestTestEval = eval;
                     bestTest = candidate;
                 }
             }
 
+            // Every test should have a positive evaluation, so this should never occur
+            if (bestTest == N) {
+                std::cout << turn << std::endl;
+                throw std::runtime_error(
+                    "Error: no test found with positive evaluation for greedy algorithm."
+                );
+            }
+
+            // Add the test into our ordering, and track that we've done it
             order[turn] = bestTest;
             tested[bestTest] = true;
 
-            for (std::size_t c = 0; c < D; ++c) {
-                prNotSeen[c] *= 1.0f - distribution[bestTest][c];
+            stateDist[turn][0] = 0.0f; // Impossible to have no colors after the first test
+            // Move probability mass around the distribution accordingly
+            for (std::size_t state = 1; state < numStates; ++state) {
+                // Find all the colors this state has
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t gainedColorBit = (1 << c) & state;
+                    if (0 == gainedColorBit) { continue; }
+
+                    // The state without color c
+                    std::uint64_t stateMinusColor = state ^ gainedColorBit;
+
+                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
+                    //                                    OR we had everything we do now]
+                    stateDist[turn + 1][state] =
+                        distribution[bestTest][c] * (stateDist[turn][stateMinusColor]
+                                                   + stateDist[turn][state]);
+                }
             }
         }
     }
-
 
 private:
     SCCPFloat distribution[N][D];
@@ -269,15 +327,17 @@ private:
 };
 
 int main() {
-    SCCP sccp;
+    for (std::size_t _ = 0; _ < 10; ++_) {
+        SCCP sccp;
 
-    sccp.printDistribution(std::cout) << '\n';
+        sccp.printDistribution(std::cout) << '\n';
 
-    sccp.calculateOPT();
-    sccp.printOPT(std::cout) << '\n';
+        sccp.calculateGreedy();
+        sccp.printGreedy(std::cout) << '\n';
 
-    sccp.calculateGreedy();
-    sccp.printGreedy(std::cout) << '\n';
+        sccp.calculateOPT();
+        sccp.printOPT(std::cout) << '\n';
+    }
 
     return 0;
 }
