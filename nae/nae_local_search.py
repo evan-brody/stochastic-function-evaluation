@@ -6,7 +6,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from mpmath import mp
-mp.dps = 100 # Decimal places used by mp.mpf
+
+# Configure mp
+mp.dps = 200    # Decimal places used by mp.mpf
+mp.pretty = True # Turn pretty-printing on
 
 # We use mp's floating point type
 NAE_float = mp.mpf
@@ -14,6 +17,7 @@ NAE_float = mp.mpf
 class NAE:
     RNG = np.random.default_rng()
     PRINT_STEP = 10_000
+
     def __init__(self, n, d):
         self.n = n
         self.d = d
@@ -22,10 +26,12 @@ class NAE:
         # Start from a random strategy
         self.shuffle_strat()
     
+    # Randomizes the strategy and updates the expected costs
     def shuffle_strat(self):
         self.strategy = self.RNG.permutation(self.n)
         self.update_expected_cost()
     
+    # Generates a distribution over the tests and colorss
     def init_distribution(self):
         # Generates random "markers" in [0, 1]
         # Doing it this way is necessary because we use the custom type NAE_float
@@ -42,6 +48,8 @@ class NAE:
             for i in range(self.d - 1, 0, -1):
                 die[i] -= die[i - 1]
 
+    # Fully recalculates the expected cost of the current strategy
+    # O(dn), use only when necessary
     def update_expected_cost(self):
         self.cost = NAE_float(1)
         pr_only_seen = np.array([ p for p in self.distribution[self.strategy[0]] ], dtype=NAE_float)
@@ -50,20 +58,23 @@ class NAE:
             for c, p in enumerate(self.distribution[test]):
                 pr_only_seen[c] *= p
 
-    # Performs one step of local search
-    # Local search is done by swapping adjacent tests
+    # Performs one step of local search. The neighbourhood of the strategy
+    # is defined as the set of strategies that can be formed swapping two
+    # tests in the current strategy.
+    # Returns true if a better strategy is found in the neighbourhood, false otherwise
     def local_step(self):
         best_swap = None
         # Improvement should be greater than machine epsilon.
-        # This is to prevent a bug where local search will continually make swaps that
-        # have an improvement on the order of 10^-17
-        best_swap_improvement = NAE_float(np.finfo(np.float64).eps)
+        # This is to prevent a bug where local search will continually make and undo
+        # a swap, each time "gaining" an improvement on the order of 10^-17 due to precision error
+        best_swap_improvement = mp.eps
+
         for i in range(self.n - 1):
             for j in range(i + 1, self.n):
                 improvement = self.gain_from_swap(i, j)
                 if improvement > best_swap_improvement:
-                    best_swap = (i, j)
                     best_swap_improvement = improvement
+                    best_swap = (i, j)
         
         if best_swap is not None:
             # Important that tables are updated before the swap instead of after
@@ -74,10 +85,32 @@ class NAE:
             return True
         
         return False
+    
+    # Exactly the above function, but a strategy's neighbourhood is defined
+    # as strategies that can be formed by swapping adjacent tests
+    def local_step_adjacent_swaps(self):
+        best_swap = None
+        best_swap_improvement = mp.eps
 
+        for i in range(self.n - 1):
+            improvement = self.gain_from_swap(i, i + 1)
+            if improvement > best_swap_improvement:
+                best_swap_improvement = improvement
+                best_swap = (i, i + 1)
+        
+        if best_swap is not None:
+            self.update_tables_after_swap(*best_swap)
+            self.swap_tests(*best_swap)
+            self.cost -= best_swap_improvement
+            return True
+
+        return False
+
+    # Swaps tests i and j in our current strategy
     def swap_tests(self, i, j):
         self.strategy[i], self.strategy[j] = self.strategy[j], self.strategy[i]
     
+    # Initializes the DP tables used by local search
     def init_local_search_tables(self):
         # pr_only[c][i] = Pr[only seen color c just after rolling (i + 1)th die]
         self.pr_only = np.ndarray(shape=(self.d, self.n), dtype=NAE_float)
@@ -93,6 +126,7 @@ class NAE:
         self.sum_from_to = np.zeros(shape=(self.d, self.n, self.n), dtype=NAE_float)
         self.update_partial_sums()
     
+    # Updates the partial sum tables after finalizing a local search step
     def update_partial_sums(self):
         for c in range(self.d):
             for i in range(self.n):                
@@ -101,6 +135,8 @@ class NAE:
                 for j in range(i + 1, self.n):
                     self.sum_from_to[c][i][j] = self.sum_from_to[c][i][j - 1] + self.pr_only[c][j]
     
+    # Returns the gain in expected cost from swapping test i with j
+    # i.e., E[cost(old)] - E[cost(new)]
     def gain_from_swap(self, i, j):
         gain = NAE_float(0)
         for c in range(self.d):
@@ -110,6 +146,7 @@ class NAE:
         
         return gain
     
+    # Updates the DP tables after finalizing a local search step
     def update_tables_after_swap(self, i, j):
         for c in range(self.d):
             change_factor = self.distribution[self.strategy[j]][c] / self.distribution[self.strategy[i]][c]
@@ -130,6 +167,7 @@ class NAE:
         
         return step_count
 
+    # Shuffles to a random strategy and starts the local search
     def shuffle_local_search(self):
         self.shuffle_strat()
         step_count = self.local_search()
