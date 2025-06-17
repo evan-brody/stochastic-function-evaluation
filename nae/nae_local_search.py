@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
     plt.plot(xpoints, ypoints, 'r-o')
     plt.title(f"N = {ITER_COUNT}; precision = {mp.dps}")
-    plt.ylabel(f"Local Search Iterations")
+    plt.ylabel("Local Search Iterations")
     plt.xlabel("n")
     plt.xticks(tick_range) # Labels on the x-axis should be integers
 
