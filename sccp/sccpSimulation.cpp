@@ -11,7 +11,7 @@
 #include <exception>
 
 constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 10;     // Number of tests
+constexpr std::uint64_t N = 14;     // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
@@ -171,6 +171,10 @@ public:
         return E;
     }
 
+    // Prints the Markov chain progression of the given order
+    // @param   os      The stream to print to
+    // @param   order   The permutation to calculate the progression for
+    // @return          The stream that was passed in, now modified
     std::ostream& printStateChain(std::ostream& os, const std::uint64_t* order) const {
         // There will be 2^d states in our Markov chain
         constexpr std::uint64_t numStates = 1 << D;
@@ -191,7 +195,10 @@ public:
         for (std::size_t i = 1; i < N; ++i) {
             std::uint64_t test = order[i - 1];
 
-            stateVector[i][0] = 0.0f; // No chance we have no colors after step 1
+            // No chance we have no colors after step 1
+            stateVector[i][0] = 0.0f;
+
+            // Compute the probability mass that should be in each state
             for (std::size_t state = 1; state < numStates; ++state) {
                 stateVector[i][state] = 0.0f;
 
@@ -378,15 +385,6 @@ public:
 
                 if (thisStratCost < greedy.cost) {
                     greedy.cost = thisStratCost;
-                    // temp
-                    currentGreedy[0] = first;
-                    currentGreedy[1] = second;
-
-                    for (std::size_t i = 2; i < N; ++i) {
-                        currentGreedy[i] = N;
-                    }
-
-                    greedyFixedTests(currentGreedy);
                     for (std::size_t i = 0; i < N; ++i) {
                         greedy.order[i] = currentGreedy[i];
                     }
