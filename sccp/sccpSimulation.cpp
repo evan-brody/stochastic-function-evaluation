@@ -27,21 +27,21 @@ typedef long double SCCPFloat;
 // @param   num The number to print
 // @return      The stream that was passed in, now modified
 std::ostream& roundPrint(std::ostream& os, double num) {
-    os << std::round(num * 100.0f) * 0.01f;
+    os << std::round(num * 10000.0f) * 0.0001f;
 
     return os;
 }
 
 // Log base 2 with inline x86 assembly
 // https://stackoverflow.com/questions/994593/how-to-do-an-integer-log2-in-c
-// static inline std::uint64_t log2(const std::uint64_t x) {
-//   std::uint64_t y;
-//   asm ("\tbsr %1, %0\n"
-//       : "=r"(y)
-//       : "r" (x)
-//   );
-//   return y;
-// }
+static inline std::uint64_t log2(const std::uint64_t x) {
+  std::uint64_t y;
+  asm ("\tbsr %1, %0\n"
+      : "=r"(y)
+      : "r" (x)
+  );
+  return y;
+}
 
 // https://stackoverflow.com/questions/8871204/count-number-of-1s-in-binary-representation
 static inline std::uint64_t bitCount(std::uint64_t u) {
@@ -64,7 +64,7 @@ static inline constexpr std::uint64_t factorial(std::uint64_t n) {
 class SCCP {
     // Represents a nonadaptive strategy
     struct NAStrategy {
-        unsigned order[N];
+        std::uint64_t order[N];
         SCCPFloat cost = N + 1;
     };
 public:
@@ -115,7 +115,7 @@ public:
     // Calculates the expected cost of a nonadaptive strategy
     // @param   order   The strategy to evaluate
     // @return          The strategy's expected cost
-    SCCPFloat expectedCost(const unsigned* order) const {
+    SCCPFloat expectedCost(const std::uint64_t* order) const {
         // There will be 2^d states in our Markov chain
         constexpr std::uint64_t numStates = 1 << D;
         constexpr std::uint64_t stateFinished = numStates - 1;
@@ -133,8 +133,7 @@ public:
 
         SCCPFloat E = 1.0f; // Must do first test
         for (std::size_t i = 1; i < N; ++i) {
-            unsigned test = order[i - 1];
-            const SCCPFloat* testDist = distribution[test];
+            std::uint64_t test = order[i - 1];
 
             stateVector[i][0] = 0.0f; // No chance we have no colors after step 1
             for (std::size_t state = 1; state < numStates; ++state) {
@@ -148,10 +147,10 @@ public:
                     std::uint64_t stateMinusColor = colorBit ^ state;
 
                     // Pr[got this color on this roll]
-                    stateVector[i][state] += testDist[c] * stateVector[i - 1][stateMinusColor];
+                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][stateMinusColor];
 
                     // Pr[had this color already, got it on this roll]
-                    stateVector[i][state] += testDist[c] * stateVector[i - 1][state];
+                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][state];
                 }
 
                 if (state != stateFinished) {
@@ -172,9 +171,63 @@ public:
         return E;
     }
 
+    std::ostream& printStateChain(std::ostream& os, const std::uint64_t* order) const {
+        // There will be 2^d states in our Markov chain
+        constexpr std::uint64_t numStates = 1 << D;
+        constexpr std::uint64_t stateFinished = numStates - 1;
+
+        // Represents the state of the system just after test i
+        //      where no tests done is considered just after the 0th test
+        // Only goes up to N - 1 since we don't care about the state of the system
+        //      after the Nth test
+        SCCPFloat stateVector[N][numStates];
+
+        stateVector[0][0] = 1.0f; // We begin in state 0 (no colors collected)
+        for (std::size_t i = 1; i < numStates; ++i) {
+            stateVector[0][i] = 0.0f;
+        }
+
+        SCCPFloat E = 1.0f; // Must do first test
+        for (std::size_t i = 1; i < N; ++i) {
+            std::uint64_t test = order[i - 1];
+
+            stateVector[i][0] = 0.0f; // No chance we have no colors after step 1
+            for (std::size_t state = 1; state < numStates; ++state) {
+                stateVector[i][state] = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = (1 << c);
+                    std::uint64_t gainedColorBit = colorBit & state;
+                    if (0 == gainedColorBit) { continue; }
+
+                    std::uint64_t stateMinusColor = colorBit ^ state;
+
+                    // Pr[got this color on this roll]
+                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][stateMinusColor];
+
+                    // Pr[had this color already, got it on this roll]
+                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][state];
+                }
+
+                if (state != stateFinished) {
+                    E += stateVector[i][state];
+                }
+            }
+        }
+
+        for (std::size_t state = 0; state < numStates; ++state) {
+            for (std::size_t i = 0; i < N; ++i) {
+                roundPrint(os, stateVector[i][state]) << '\t';
+            }
+            os << '\n';
+        }
+        
+        return os;
+    }
+
     // Brute-force search for an optimal strategy
     void calculateOPT() {
-        unsigned currentStrat[N];
+        std::uint64_t currentStrat[N];
 
         // Array must start sorted for next_permutation to cover all permutations
         for (std::size_t i = 0; i < N; ++i) {
@@ -212,32 +265,137 @@ public:
         for (std::size_t i = 0; i < N; ++i) {
             os << OPT.order[i] << ' ';
         }
-        os << "\nE[cost(OPT, x)]: " << OPT.cost;
+        os << "\nE[cost(OPT, x)]: " << OPT.cost << '\n';
+
+        printStateChain(os, OPT.order);
 
         return os;
     }
 
-    // Generates the nonadaptive greedy ordering
-    void calculateGreedy() {
-        unsigned currentGreedy[N];
+    void greedyFixedTests(std::uint64_t (&order)[N]) {
+        bool tested[N]; // Tracks which variables we've used so far
+        for (std::size_t test = 0; test < N; ++test) {
+            tested[test] = false;
+        }
 
-        // Brute-force to see which test to do first
-        for (std::size_t i = 0; i < N; ++i) {
-            // Generate the greedy strategy with this first test
-            calculateGreedyWithFirstTest(currentGreedy, i);
+        constexpr std::uint64_t numStates = 1 << D;
+        constexpr std::uint64_t stateFinished = numStates - 1;
 
-            // Is it the best so far ?
-            SCCPFloat thisCost = expectedCost(currentGreedy);
-            if (thisCost < greedy.cost) { // If it's the best so far, copy over its info
-                greedy.cost = thisCost;
-                for (std::size_t j = 0; j < N; ++j) {
-                    greedy.order[j] = currentGreedy[j];
+        // Set up initial state before the first test
+        SCCPFloat stateVectors[N + 1][numStates];
+        stateVectors[0][0] = 1.0f;
+        for (std::size_t state = 1; state < numStates; ++state) {
+            stateVectors[0][state] = 0.0f;
+        }
+
+        // Calculate the state changes from the fixed tests
+        std::size_t turn = 0;
+        while (order[turn] != N) {
+            stateVectors[turn + 1][0] = 0.0f;
+
+            for (std::size_t state = 1; state < numStates; ++state) {
+                stateVectors[turn + 1][state] = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = (1 << c);
+                    std::uint64_t gainedColorBit = colorBit & state;
+                    if (0 == gainedColorBit) { continue; }
+
+                    std::uint64_t stateMinusColor = colorBit ^ state;
+
+                    // Pr[got this color on this roll]
+                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][stateMinusColor];
+
+                    // Pr[had this color already, got it on this roll]
+                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][state];
+                }
+            }
+
+            tested[order[turn]] = true;
+            ++turn;
+        }
+
+        for (; turn < N; ++turn) {
+            std::uint64_t bestTest = N;
+            SCCPFloat bestTestEval = -1.0f;
+
+            for (std::uint64_t candidate = 0; candidate < N; ++candidate) {
+                if (tested[candidate]) { continue; }
+
+                SCCPFloat thisTestEval = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t stateJustMissingC = stateFinished ^ (1 << c);
+
+                    thisTestEval +=
+                    distribution[candidate][c] * stateVectors[turn][stateJustMissingC];
+                }
+
+                if (thisTestEval > bestTestEval) {
+                    bestTestEval = thisTestEval;
+                    bestTest = candidate;
+                }
+            }
+
+            order[turn] = bestTest;
+            tested[bestTest] = true;
+
+            stateVectors[turn + 1][0] = 0.0f;
+            for (std::size_t state = 1; state < numStates; ++state) {
+                stateVectors[turn + 1][state] = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = (1 << c);
+                    std::uint64_t gainedColorBit = colorBit & state;
+                    if (0 == gainedColorBit) { continue; }
+
+                    std::uint64_t stateMinusColor = colorBit ^ state;
+
+                    // Pr[got this color on this roll]
+                    stateVectors[turn + 1][state] += distribution[bestTest][c] * stateVectors[turn][stateMinusColor];
+
+                    // Pr[had this color already, got it on this roll]
+                    stateVectors[turn + 1][state] += distribution[bestTest][c] * stateVectors[turn][state];
                 }
             }
         }
     }
 
-    // Prints information about the generated greedy algorithm
+    void calculateGreedy() {
+        std::uint64_t currentGreedy[N];
+
+        for (std::size_t first = 0; first < N - 1; ++first) {
+            for (std::size_t second = first + 1; second < N; ++second) {
+                currentGreedy[0] = first;
+                currentGreedy[1] = second;
+
+                for (std::size_t i = 2; i < N; ++i) {
+                    currentGreedy[i] = N;
+                }
+
+                greedyFixedTests(currentGreedy);
+                SCCPFloat thisStratCost = expectedCost(currentGreedy);
+
+                if (thisStratCost < greedy.cost) {
+                    greedy.cost = thisStratCost;
+                    // temp
+                    currentGreedy[0] = first;
+                    currentGreedy[1] = second;
+
+                    for (std::size_t i = 2; i < N; ++i) {
+                        currentGreedy[i] = N;
+                    }
+
+                    greedyFixedTests(currentGreedy);
+                    for (std::size_t i = 0; i < N; ++i) {
+                        greedy.order[i] = currentGreedy[i];
+                    }
+                }
+            }
+        }
+    }
+
+    // Prints information about Greedy
     // @param   os  The stream to print to
     // @return      The stream that was passed in, now modified
     std::ostream& printGreedy(std::ostream& os) const {
@@ -245,472 +403,9 @@ public:
         for (std::size_t i = 0; i < N; ++i) {
             os << greedy.order[i] << ' ';
         }
-        os << "\nE[cost(Greedy, x)]: " << greedy.cost;
+        os << "\nE[cost(Greedy, x)]: " << greedy.cost << '\n';
 
-        return os;
-    }
-
-    // Calculates what the greedy algorithm would do after the specified first test
-    // @param   first   The test to start with
-    // @param   order   The initially empty ordering, which will be modified in-place
-    void calculateGreedyWithFirstTest(unsigned* order, unsigned first) {
-        bool tested[N]; // Tracks which variables we've used so far
-        for (std::size_t i = 0; i < N; ++i) {
-            tested[i] = false;
-        }
-
-        // First test is fixed, so track that it's been used
-        order[0] = first;
-        tested[first] = true;
-
-        // There are 2^d possible states, one for each subset of the colors
-        constexpr std::uint64_t numStates = 1 << D;
-
-        // stateDist[i][j] = Pr[we're in state j just after the ith test]
-        //                      where no tests conducted is considered just after th 0th test
-        //                      where order[0] is considered the 1st test
-        SCCPFloat stateDist[N + 1][numStates];
-
-        // We always start with no colors with probability 1
-        stateDist[0][0] = 1.0f;
-        for (std::size_t state = 1; state < numStates; ++state) {
-            stateDist[0][state] = 0.0f;
-        }
-
-        // Initially clear the distribution for just after the first test
-        for (std::size_t state = 0; state < numStates; ++state) {
-            stateDist[1][state] = 0.0f;
-        }
-
-        // Move the probability mass according to the first test
-        for (std::size_t c = 0; c < D; ++c) {
-            // The state in which we only have c
-            std::uint64_t onlyThisColorState = 1 << c;
-
-            // Pr[get c from first test]
-            stateDist[1][onlyThisColorState] = distribution[first][c];
-        }
-
-        // Fill the ordering turn by turn
-        for (std::size_t turn = 1; turn < N; ++turn) {
-            // NOTE: the distribution over the states, at the current point in time,
-            //       will be given by stateDist[turn]
-            unsigned bestTest = N;
-            SCCPFloat bestTestEval = 0.0f; // Evaluation metric we use to compare between possible tests
-
-            // Iterate through candidate tests to find the best
-            for (std::size_t candidate = 0; candidate < N; ++candidate) {
-                if (tested[candidate]) { continue; } // Skip if used already
-
-                SCCPFloat eval = 0.0f;
-                for (std::size_t state = 1; state < numStates; ++state) {
-                    SCCPFloat pmExiting = 0.0f; // The probability mass exiting this state
-
-                    // Add in the proportion of probability mass that will move out due to each color
-                    for (std::size_t c = 0; c < D; ++c) {
-                        if (!((1 << c) & state)) { // If the state needs color c
-                            pmExiting += distribution[candidate][c];
-                        }
-                    }
-
-                    // So far we've just added in proportions, now we need to
-                    // scale by the probability mass that's actually in the state
-                    pmExiting *= stateDist[turn][state];
-
-                    // Add to our eval
-                    eval += pmExiting;
-                }
-
-                // Larger eval is better
-                if (eval > bestTestEval) {
-                    bestTestEval = eval;
-                    bestTest = candidate;
-                }
-            }
-
-            // Every test should have a positive evaluation, so this should never occur
-            if (bestTest == N) {
-                std::cout << turn << std::endl;
-                throw std::runtime_error(
-                    "Error: no test found with positive evaluation for greedy algorithm."
-                );
-            }
-
-            // Add the test into our ordering, and track that we've done it
-            order[turn] = bestTest;
-            tested[bestTest] = true;
-
-            // Impossible to have no colors after the first test
-            stateDist[turn][0] = 0.0f;
-
-            // Move probability mass around the distribution accordingly
-            // NOTE: we are wasting a little bit of time by updating the table
-            //       after the last test is selected, but this shouldn't matter
-            for (std::size_t state = 1; state < numStates; ++state) {
-                // Find all the colors this state has
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t gainedColorBit = (1 << c) & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    // The state without color c
-                    std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                    //                                    OR we had everything we do now]
-                    stateDist[turn + 1][state] =
-                        distribution[bestTest][c] * (stateDist[turn][stateMinusColor]
-                                                   + stateDist[turn][state]);
-                }
-            }
-        }
-    }
-
-    void alternateGreedyWithFirstTest(unsigned* order, unsigned first, unsigned second) {
-        bool tested[N]; // Tracks which variables we've used so far
-        for (std::size_t i = 0; i < N; ++i) {
-            tested[i] = false;
-        }
-
-        // First test is fixed, so track that it's been used
-        order[0] = first;
-        tested[first] = true;
-
-        order[1] = second;
-        tested[second] = true;
-
-        constexpr std::uint64_t numStates = 1 << D;
-        constexpr std::uint64_t stateFinished = numStates - 1;
-        SCCPFloat stateVector[N + 1][numStates];
-        stateVector[0][0] = 1.0f;
-        for (std::size_t i = 1; i < numStates; ++i) {
-            stateVector[0][i] = 0.0f;
-        }
-
-        for (std::size_t i = 1; i < N + 1; ++i) {
-            stateVector[i][0] = 0.0f;
-        }
-
-        for (std::size_t state = 1; state < numStates; ++state) {
-            // Find all the colors this state has
-            for (std::size_t c = 0; c < D; ++c) {
-                std::uint64_t gainedColorBit = (1 << c) & state;
-                if (0 == gainedColorBit) { continue; }
-
-                // The state without color c
-                std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                //                                    OR we had everything we do now]
-                stateVector[1][state] =
-                    distribution[first][c] * (stateVector[0][stateMinusColor]
-                                                + stateVector[0][state]);
-            }
-        }
-
-        for (std::size_t state = 1; state < numStates; ++state) {
-            // Find all the colors this state has
-            for (std::size_t c = 0; c < D; ++c) {
-                std::uint64_t gainedColorBit = (1 << c) & state;
-                if (0 == gainedColorBit) { continue; }
-
-                // The state without color c
-                std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                //                                    OR we had everything we do now]
-                stateVector[2][state] =
-                    distribution[second][c] * (stateVector[1][stateMinusColor]
-                                                + stateVector[1][state]);
-            }
-        }
-
-        // for (std::size_t state = 0; state < numStates; ++state) {
-        //     for (std::size_t i = 0; i < N + 1; ++i) {
-        //         roundPrint(std::cout, stateVector[i][state]) << '\t';
-        //     }
-        //     std::cout << '\n';
-        // }
-
-
-        for (std::size_t turn = 2; turn < N; ++turn) {
-
-            unsigned bestTest = N;
-            SCCPFloat bestTestScore = 0.0f;
-
-            for (std::size_t candidate = 0; candidate < N; ++candidate) {
-                if (tested[candidate]) { continue; }
-
-                SCCPFloat thisTestScore = 0.0f;
-
-                for (std::size_t c = 0; c < D; ++c) {
-
-                    std::uint64_t gainedColorBit = (1 << c);
-
-                    std::uint64_t stateMinusColor = stateFinished ^ gainedColorBit;
-                    // std::cout << ":::::::::" << std::endl;
-                    // std::cout << stateMinusColor << std::endl;
-                    // std::cout << gainedColorBit << std::endl;
-                    // std::cout << stateFinished << std::endl;
-
-                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                    //                                    OR we had everything we do now]
-                    thisTestScore += distribution[candidate][c] * stateVector[turn][stateMinusColor];
-                    // std::cout << stateVector[turn][stateMinusColor] << std::endl;
-                }
-
-                if (thisTestScore > bestTestScore) {
-                    bestTestScore = thisTestScore;
-                    bestTest = candidate;
-                }
-            }
-
-            if (bestTest == N) {
-                throw std::runtime_error("alternate greedy error");
-            }
-    
-            tested[bestTest] = true;
-            order[turn] = bestTest;
-
-            for (std::size_t state = 1; state < numStates; ++state) {
-                // Find all the colors this state has
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t gainedColorBit = (1 << c) & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    // The state without color c
-                    std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                    //                                    OR we had everything we do now]
-                    stateVector[turn + 1][state] =
-                        distribution[bestTest][c] * (stateVector[turn][stateMinusColor]
-                                                    + stateVector[turn][state]);
-                }
-            }
-        }
-    }
-
-    // Generates the nonadaptive greedy ordering
-    void alternateGreedy() {
-        unsigned currentGreedy[N];
-
-        // Brute-force to see which test to do first
-        for (std::size_t i = 0; i < N; ++i) {
-            for (std::size_t j = 0; j < N; ++j) {
-                if (i == j) { continue; }
-                // Generate the greedy strategy with this first test
-                alternateGreedyWithFirstTest(currentGreedy, i, j);
-
-                // Is it the best so far ?
-                SCCPFloat thisCost = expectedCost(currentGreedy);
-                if (thisCost < altGreedy.cost) { // If it's the best so far, copy over its info
-                    altGreedy.cost = thisCost;
-                    for (std::size_t k = 0; k < N; ++k) {
-                        altGreedy.order[k] = currentGreedy[k];
-                    }
-                }
-            }
-        }
-    }
-
-    // Prints information about the generated greedy algorithm
-    // @param   os  The stream to print to
-    // @return      The stream that was passed in, now modified
-    std::ostream& printAltGreedy(std::ostream& os) const {
-        os << "Alt Greedy:\n";
-        for (std::size_t i = 0; i < N; ++i) {
-            os << altGreedy.order[i] << ' ';
-        }
-        os << "\nE[cost(AltGreedy, x)]: " << altGreedy.cost;
-
-        return os;
-    }
-
-    void calcGreedy2WithFirstTests(unsigned* order, unsigned first, unsigned second) {
-        bool tested[N]; // Tracks which variables we've used so far
-        for (std::size_t i = 0; i < N; ++i) {
-            tested[i] = false;
-        }
-
-        // First test is fixed, so track that it's been used
-        order[0] = first;
-        order[1] = second;
-        tested[first] = true;
-        tested[second] = true;
-
-        // There are 2^d possible states, one for each subset of the colors
-        constexpr std::uint64_t numStates = 1 << D;
-        constexpr std::uint64_t stateFinished = numStates - 1;
-
-        // stateDist[i][j] = Pr[we're in state j just after the ith test]
-        //                      where no tests conducted is considered just after th 0th test
-        //                      where order[0] is considered the 1st test
-        SCCPFloat stateDist[N + 1][numStates];
-
-        // We always start with no colors with probability 1
-        stateDist[0][0] = 1.0f;
-        for (std::size_t state = 1; state < numStates; ++state) {
-            stateDist[0][state] = 0.0f;
-        }
-
-        // Initially clear the distribution for just after the first test
-        for (std::size_t state = 0; state < numStates; ++state) {
-            stateDist[1][state] = 0.0f;
-        }
-
-        // Move the probability mass according to the first test
-        for (std::size_t c = 0; c < D; ++c) {
-            // The state in which we only have c
-            std::uint64_t onlyThisColorState = 1 << c;
-
-            // Pr[get c from first test]
-            stateDist[1][onlyThisColorState] = distribution[first][c];
-        }
-
-        stateDist[2][0] = 0.0f;
-        for (std::size_t state = 1; state < numStates; ++state) {
-            for (std::size_t c = 0; c < D; ++c) {
-                std::uint64_t gainedColorBit = (1 << c) & state;
-                if (0 == gainedColorBit) { continue; }
-
-                // The state without color c
-                std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                //                                    OR we had everything we do now]
-                stateDist[2][state] =
-                    distribution[second][c] * (stateDist[1][stateMinusColor]
-                                                + stateDist[1][state]);
-            }
-        }
-
-        for (std::size_t turn = 2; turn < N; turn += 2) {
-            std::size_t bestFirst = N;
-            std::size_t bestSecond = N;
-            SCCPFloat evalToBeat = 0.0f;
-
-            stateDist[turn + 1][0] = 0.0f;
-            stateDist[turn + 2][0] = 0.0f;
-            for (std::size_t firstCand = 0; firstCand < N; ++firstCand) {
-                if (tested[firstCand]) { continue; }
-
-                for (std::size_t secondCand = 0; secondCand < N; ++secondCand) {
-                    if (tested[secondCand] || secondCand == firstCand) { continue; }
-
-                    // AFTER FIRST TEST
-                    for (std::size_t state = 1; state < numStates; ++state) {
-                        for (std::size_t c = 0; c < D; ++c) {
-                            std::uint64_t gainedColorBit = (1 << c) & state;
-                            if (0 == gainedColorBit) { continue; }
-
-                            // The state without color c
-                            std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                            // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                            //                                    OR we had everything we do now]
-                            stateDist[turn + 1][state] =
-                                distribution[firstCand][c] * (stateDist[turn][stateMinusColor]
-                                                        + stateDist[turn][state]);
-                        }
-                    }
-
-                    // AFTER SECOND TEST
-                    for (std::size_t state = 1; state < numStates; ++state) {
-                        for (std::size_t c = 0; c < D; ++c) {
-                            std::uint64_t gainedColorBit = (1 << c) & state;
-                            if (0 == gainedColorBit) { continue; }
-
-                            // The state without color c
-                            std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                            // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                            //                                    OR we had everything we do now]
-                            stateDist[turn + 2][state] =
-                                distribution[firstCand][c] * (stateDist[turn + 1][stateMinusColor]
-                                                        + stateDist[turn + 1][state]);
-                        }
-                    }
-
-                    if (stateDist[turn + 2][stateFinished] > evalToBeat) {
-                        evalToBeat = stateDist[turn + 2][stateFinished];
-                        bestFirst = firstCand;
-                        bestSecond = secondCand;
-                    }
-                } // seconCand search
-            } // firstCand search
-
-            order[turn] = bestFirst;
-            order[turn + 1] = bestSecond;
-            tested[bestFirst] = true;
-            tested[bestSecond] = true;
-
-            // AFTER FIRST TEST
-            for (std::size_t state = 1; state < numStates; ++state) {
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t gainedColorBit = (1 << c) & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    // The state without color c
-                    std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                    //                                    OR we had everything we do now]
-                    stateDist[turn + 1][state] =
-                        distribution[bestFirst][c] * (stateDist[turn][stateMinusColor]
-                                                + stateDist[turn][state]);
-                }
-            }
-
-            // AFTER SECOND TEST
-            for (std::size_t state = 1; state < numStates; ++state) {
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t gainedColorBit = (1 << c) & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    // The state without color c
-                    std::uint64_t stateMinusColor = state ^ gainedColorBit;
-
-                    // Pr[we got c on this test] * Pr[we had everything we do now, except C
-                    //                                    OR we had everything we do now]
-                    stateDist[turn + 2][state] =
-                        distribution[bestSecond][c] * (stateDist[turn + 1][stateMinusColor]
-                                                + stateDist[turn + 1][state]);
-                }
-            }
-        }
-    }
-
-    void calcGreedy2() {
-        unsigned currentGreedy[N];
-
-        // Brute-force to see which test to do first
-        for (std::size_t i = 0; i < N; ++i) {
-            for (std::size_t j = 0; j < N; ++j) {
-                if (i == j) { continue; }
-                // Generate the greedy strategy with this first test
-                calcGreedy2WithFirstTests(currentGreedy, i, j);
-
-                // Is it the best so far ?
-                SCCPFloat thisCost = expectedCost(currentGreedy);
-                if (thisCost < altGreedy2.cost) { // If it's the best so far, copy over its info
-                    altGreedy2.cost = thisCost;
-                    for (std::size_t j = 0; j < N; ++j) {
-                        altGreedy2.order[j] = currentGreedy[j];
-                    }
-                }
-            }
-        }
-    }
-
-    // Prints information about the generated greedy algorithm
-    // @param   os  The stream to print to
-    // @return      The stream that was passed in, now modified
-    std::ostream& printAltGreedy2(std::ostream& os) const {
-        os << "Alt Greedy 2:\n";
-        for (std::size_t i = 0; i < N; ++i) {
-            os << altGreedy2.order[i] << ' ';
-        }
-        os << "\nE[cost(AltGreedy2, x)]: " << altGreedy2.cost;
+        printStateChain(os, greedy.order);
 
         return os;
     }
@@ -719,8 +414,6 @@ private:
     SCCPFloat distribution[N][D];
     NAStrategy OPT;
     NAStrategy greedy;
-    NAStrategy altGreedy;
-    NAStrategy altGreedy2;
 };
 
 int main() {
@@ -729,17 +422,13 @@ int main() {
 
         sccp.printDistribution(std::cout) << '\n';
 
+        sccp.calculateOPT();
+        sccp.printOPT(std::cout) << '\n';
+
         sccp.calculateGreedy();
         sccp.printGreedy(std::cout) << '\n';
 
-        sccp.alternateGreedy();
-        sccp.printAltGreedy(std::cout) << '\n';
-
-        // sccp.calcGreedy2();
-        // sccp.printAltGreedy2(std::cout) << '\n';
-
-        sccp.calculateOPT();
-        sccp.printOPT(std::cout) << '\n';
+        std::cout << "\n==================================================================================================\n";
     }
     
     return 0;
