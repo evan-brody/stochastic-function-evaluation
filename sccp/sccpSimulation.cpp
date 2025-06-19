@@ -420,11 +420,11 @@ int main() {
 
         sccp.printDistribution(std::cout) << '\n';
 
-        sccp.calculateOPT();
-        sccp.printOPT(std::cout) << '\n';
-
         sccp.calculateGreedy();
         sccp.printGreedy(std::cout) << '\n';
+
+        sccp.calculateOPT();
+        sccp.printOPT(std::cout) << '\n';
 
         std::cout << "\n==================================================================================================\n";
     }
