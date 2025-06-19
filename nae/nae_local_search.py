@@ -8,7 +8,7 @@ import itertools
 from mpmath import mp
 
 # Configure mp
-mp.dps = 200     # Decimal places used by mp.mpf
+mp.dps = 100     # Decimal places used by mp.mpf
 mp.pretty = True # Turn pretty-printing on
 
 # We use mp's floating point type
@@ -177,6 +177,8 @@ class NAE:
     def shuffle_local_search_all_swaps(self):
         self.shuffle_strat()
 
+        # print(f"Minimum cost: {self.cost}")
+
         return self.local_search_all_swaps()
     
     # Same as above, but only searches adjacent swaps
@@ -187,12 +189,15 @@ class NAE:
 
 ITER_COUNT = 100
 def avg_local_steps_all_swaps(n):
+
+    max_steps = 0
     total_step_count = 0
     for _ in range(ITER_COUNT):
         nae = NAE(n, 3)
-        total_step_count += nae.shuffle_local_search_all_swaps()
+        this_steps = nae.shuffle_local_search_all_swaps()
+        max_steps = max(max_steps, this_steps)
     
-    return total_step_count / ITER_COUNT
+    return max_steps
 
 def avg_local_steps_adjacent_swaps(n):
     total_step_count = 0
@@ -205,17 +210,21 @@ def avg_local_steps_adjacent_swaps(n):
 def check_for_local_minima(n):
     nae = NAE(n, 3)
     for _ in range(10):
-        nae.shuffle_local_search()
+        nae.shuffle_local_search_all_swaps()
         print("---")
 
 if __name__ == "__main__":
-    nrange = range(10, 51)
+    # check_for_local_minima(20)
+    # exit(0)
+
+    nrange = range(10, 31)
     tick_range = nrange[::10]
     xpoints = list(nrange)
     ypoints = []
     for n in nrange:
-        ypoints.append(avg_local_steps_all_swaps(n))
-        print(f"Completed n = {n}")
+        res = avg_local_steps_all_swaps(n)
+        ypoints.append(res)
+        print(f"Completed n = {n}, result: {res}")
 
     plt.plot(xpoints, ypoints, 'r-o')
     plt.title(f"N = {ITER_COUNT}; precision = {mp.dps}")
