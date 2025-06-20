@@ -10,8 +10,8 @@
 #include <algorithm>
 #include <exception>
 
-constexpr std::uint64_t D = 7;      // Number of coupons
-constexpr std::uint64_t N = 100;     // Number of tests
+constexpr std::uint64_t D = 3;      // Number of coupons
+constexpr std::uint64_t N = 20;    // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
@@ -416,13 +416,15 @@ public:
     // Performs a local search from the given starting point
     // The neighborhood of a permutation is defined by all possible swaps of two tests
     // @param   startingOrder   The permutation to start from
-    void localSearch(std::uint64_t (&startingOrder)[N]) {
+    // @return                  Number of steps to convergence
+    std::uint64_t localSearch(std::uint64_t (&startingOrder)[N]) {
         // Copy initial ordering
         localOPT.cost = expectedCost(startingOrder);
         for (std::size_t i = 0; i < N; ++i) {
             localOPT.order[i] = startingOrder[i];
         }
 
+        std::uint64_t stepCount = 0;
         std::size_t bestSwapFrom = N, bestSwapTo = N;
         do {
             bestSwapFrom = bestSwapTo = N;
@@ -453,15 +455,17 @@ public:
                 std::swap(localOPT.order[bestSwapFrom], localOPT.order[bestSwapTo]);
                 localOPT.cost = bestCost;
             }
+        // This will only increment stepCount if (bestSwapFrom != N), and won't affect the loop condition
+        } while (bestSwapFrom != N && ++stepCount);
 
-        } while (bestSwapFrom != N);
+        return stepCount;
     }
 
-    void localSearchFromGreedy() {
-        localSearch(greedy.order);
+    std::uint64_t localSearchFromGreedy() {
+        return localSearch(greedy.order);
     }
 
-    void localSearchFromRandom() {
+    std::uint64_t localSearchFromRandom() {
         std::uint64_t startingOrder[N];
         for (std::size_t i = 0; i < N; ++i) { 
             startingOrder[i] = i;
@@ -473,7 +477,7 @@ public:
         // Randomly shuffle the tests
         std::shuffle(startingOrder, startingOrder + N, mersenne);
 
-        localSearch(startingOrder);
+        return localSearch(startingOrder);
     }
 
     // Prints information about a local optimum
@@ -508,7 +512,8 @@ int main() {
         sccp.calculateGreedy();
         sccp.printGreedy(std::cout) << '\n';
 
-        sccp.localSearchFromGreedy();
+        std::cout << "Steps to convergence from greedy: ";
+        std::cout << sccp.localSearchFromGreedy() << '\n';
         sccp.printLocalOPT(std::cout) << '\n';
 
         sccp.localSearchFromRandom();
