@@ -11,7 +11,7 @@
 #include <exception>
 
 constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 20;    // Number of tests
+constexpr std::uint64_t N = 11;    // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
@@ -19,9 +19,39 @@ constexpr std::uint64_t N = 20;    // Number of tests
 constexpr std::uint64_t OPT_SEARCH_PRINT = (1 << 20) - 1;
 
 // #define DEBUG
-// #define PRINT_MARKOV
+#define PRINT_MARKOV
+#define PRINT_DICE_DISTS
 
 typedef long double SCCPFloat;
+
+// Converts a state represented as a bitstring to a state represented as a string
+// Only configured for D = 3
+// @param   state   The state represented as a bitstring
+// @return          The state represented as a string
+std::string bitToStateString(std::uint64_t state) {
+    if (D != 3) { return ""; }
+
+    std::string stateString;
+    for (std::size_t c = 0; c < D; ++c) {
+        if ((1 << c) & state) {
+            switch (c) {
+                case 0:
+                    stateString += "R";
+                    break;
+                case 1:
+                    stateString += "G";
+                    break;
+                case 2:
+                    stateString += "B";
+                    break;
+                default:
+                    stateString += "?";
+            }
+        }
+    }
+
+    return stateString;
+}
 
 // Prints a number rounded to 2 decimal places
 // @param   os  The stream to print to
@@ -71,6 +101,25 @@ class SCCP {
 public:
     SCCP() {
         initDistribution();
+        initStates();
+    }
+
+    // We maintain an array of possible states, where a bit being 1 means we have a color in that state
+    // We need to initialize and sort these states by number of colors obtained so that our printed info looks nicer
+    void initStates() {
+        constexpr std::uint64_t numStates = 1 << D;
+        for (std::size_t state = 0; state < numStates; ++state) {
+            states[state] = state;
+        }
+
+        // Sort states by number of colors obtained
+        std::sort(
+            states,
+            states + numStates,
+            [this](std::uint64_t a, std::uint64_t b) {
+                return bitCount(a) < bitCount(b);
+            }
+        );
     }
 
     // Generates a distribution over the tests and colors
@@ -223,13 +272,33 @@ public:
             }
         }
 
-        for (std::size_t state = 0; state < numStates; ++state) {
+        for (std::uint64_t state : states) {
+            os << bitToStateString(state) << '\t';
             for (std::size_t i = 0; i < N; ++i) {
                 roundPrint(os, stateVector[i][state]) << '\t';
             }
             os << '\n';
         }
         
+        return os;
+    }
+
+    // Prints the dice in a permutation as their distributions on [d]
+    // @param   os      The stream to print to
+    // @param   order   The ordering to print
+    // @return          The stream that was passed in, now modified
+    std::ostream& printOrderDists(std::ostream& os, const std::uint64_t (&order)[N]) const {
+        for (std::size_t c = 0; c < D; ++c) {
+            #ifdef PRINT_MARKOV
+            os << '\t';
+            #endif
+            for (std::size_t i = 0; i < N; ++i) {
+                roundPrint(os, distribution[order[i]][c]) << '\t';
+            }
+
+            os << '\n';
+        }
+
         return os;
     }
 
@@ -269,14 +338,19 @@ public:
     // @param   os  The stream to print to
     // @return      The stream that was passed in, now modified
     std::ostream& printOPT(std::ostream& os) const {
-        os << "OPT:                                                          \n";
+        os << "OPT:                                                                    \n";
+        printOPTNotGreedy();
         for (std::size_t i = 0; i < N; ++i) {
             os << OPT.order[i] << ' ';
         }
         os << "\nE[cost(OPT, x)]: " << OPT.cost << '\n';
 
+        #ifdef PRINT_DICE_DISTS
+        printOrderDists(os << '\n', OPT.order);
+        #endif
+
         #ifdef PRINT_MARKOV
-        printStateChain(os, OPT.order);
+        printStateChain(os << '\n', OPT.order);
         #endif
 
         return os;
@@ -406,8 +480,12 @@ public:
         }
         os << "\nE[cost(Greedy, x)]: " << greedy.cost << '\n';
 
+        #ifdef PRINT_DICE_DISTS
+        printOrderDists(os << '\n', greedy.order);
+        #endif
+
         #ifdef PRINT_MARKOV
-        printStateChain(os, greedy.order);
+        printStateChain(os << '\n', greedy.order);
         #endif
 
         return os;
@@ -490,14 +568,109 @@ public:
         }
         os << "\nE[cost(LocalOPT, x)]: " << localOPT.cost << '\n';
 
+        #ifdef PRINT_DICE_DISTS
+        printOrderDists(os << '\n', localOPT.order);
+        #endif
+
         #ifdef PRINT_MARKOV
-        printStateChain(os, localOPT.order);
+        printStateChain(os << '\n', localOPT.order);
         #endif
 
         return os;
     }
+
+    // Prints "X" markers above the tests where OPT does not behave greedily
+    // Should only be called just prior to printing OPT.order
+    void printOPTNotGreedy() const {
+        bool tested[N];
+        for (std::size_t i = 0; i < N; ++i) {
+            tested[i] = false;
+        }
+
+        constexpr std::uint64_t numStates = 1 << D;
+        constexpr std::uint64_t stateFinished = numStates - 1;
+        SCCPFloat stateVectors[N + 1][numStates];
+
+        stateVectors[0][0] = 1.0f;
+        for (std::size_t state = 1; state < numStates; ++state) {
+            stateVectors[0][state] = 0.0f;
+        }
+
+        for (std::size_t i = 0; i < D; ++i) {
+            std::cout << "  ";
+            tested[OPT.order[i]] = true;
+
+            for (std::size_t state = 0; state < numStates; ++state) {
+                stateVectors[i + 1][state] = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = 1 << c;
+                    if (0 == (state & colorBit)) { continue; }
+
+                    std::uint64_t stateMinusColor = state ^ colorBit;
+
+                    stateVectors[i + 1][state] +=
+                    distribution[OPT.order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
+                }
+            }
+        }
+
+        for (std::size_t i = D; i < N; ++i) {
+            std::uint64_t bestTest = N;
+            SCCPFloat bestTestEval = -1.0f;
+
+            for (std::size_t candidate = 0; candidate < N; ++candidate) {
+                if (tested[candidate]) { continue; }
+
+                for (std::size_t state = 0; state < numStates; ++state) {
+                    stateVectors[i + 1][state] = 0.0f;
+
+                    for (std::size_t c = 0; c < D; ++c) {
+                        std::uint64_t colorBit = 1 << c;
+                        if (0 == (state & colorBit)) { continue; }
+
+                        std::uint64_t stateMinusColor = state ^ colorBit;
+
+                        stateVectors[i + 1][state] +=
+                        distribution[candidate][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
+                    }
+                }
+
+                if (stateVectors[i + 1][stateFinished] > bestTestEval) {
+                    bestTestEval = stateVectors[i + 1][stateFinished];
+                    bestTest = candidate;
+                }
+            }
+
+            if (bestTest != OPT.order[i]) {
+                std::cout << "X ";
+            } else {
+                std::cout << "  ";
+            }
+
+            tested[OPT.order[i]] = true;
+
+            for (std::size_t state = 0; state < numStates; ++state) {
+                stateVectors[i + 1][state] = 0.0f;
+
+                for (std::size_t c = 0; c < D; ++c) {
+                    std::uint64_t colorBit = 1 << c;
+                    if (0 == (state & colorBit)) { continue; }
+
+                    std::uint64_t stateMinusColor = state ^ colorBit;
+
+                    stateVectors[i + 1][state] +=
+                    distribution[OPT.order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
+                }
+            }
+        }
+
+        std::cout << '\n';
+    }
 private:
     SCCPFloat distribution[N][D];
+    std::uint64_t states[1 << D];
+
     NAStrategy OPT;
     NAStrategy localOPT;
     NAStrategy greedy;
@@ -507,17 +680,11 @@ int main() {
     for (std::size_t _ = 0; _ < 10; ++_) {
         SCCP sccp;
 
-        // sccp.printDistribution(std::cout) << '\n';
-
         sccp.calculateGreedy();
         sccp.printGreedy(std::cout) << '\n';
 
-        std::cout << "Steps to convergence from greedy: ";
-        std::cout << sccp.localSearchFromGreedy() << '\n';
-        sccp.printLocalOPT(std::cout) << '\n';
-
-        sccp.localSearchFromRandom();
-        sccp.printLocalOPT(std::cout) << '\n';
+        sccp.calculateOPT();
+        sccp.printOPT(std::cout) << '\n';
 
         std::cout << "\n==================================================================================================\n";
     }
