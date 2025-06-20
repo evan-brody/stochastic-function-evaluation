@@ -27,7 +27,7 @@ typedef long double SCCPFloat;
 // @param   os  The stream to print to
 // @param   num The number to print
 // @return      The stream that was passed in, now modified
-std::ostream& roundPrint(std::ostream& os, double num) {
+std::ostream& roundPrint(std::ostream& os, SCCPFloat num) {
     os << std::round(num * 10000.0f) * 0.0001f;
 
     return os;
