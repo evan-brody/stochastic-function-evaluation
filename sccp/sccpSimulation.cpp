@@ -10,8 +10,8 @@
 #include <algorithm>
 #include <exception>
 
-constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 14;     // Number of tests
+constexpr std::uint64_t D = 7;      // Number of coupons
+constexpr std::uint64_t N = 100;     // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
@@ -19,6 +19,7 @@ constexpr std::uint64_t N = 14;     // Number of tests
 constexpr std::uint64_t OPT_SEARCH_PRINT = (1 << 20) - 1;
 
 // #define DEBUG
+// #define PRINT_MARKOV
 
 typedef long double SCCPFloat;
 
@@ -274,7 +275,9 @@ public:
         }
         os << "\nE[cost(OPT, x)]: " << OPT.cost << '\n';
 
+        #ifdef PRINT_MARKOV
         printStateChain(os, OPT.order);
+        #endif
 
         return os;
     }
@@ -403,14 +406,96 @@ public:
         }
         os << "\nE[cost(Greedy, x)]: " << greedy.cost << '\n';
 
+        #ifdef PRINT_MARKOV
         printStateChain(os, greedy.order);
+        #endif
 
         return os;
     }
 
+    // Performs a local search from the given starting point
+    // The neighborhood of a permutation is defined by all possible swaps of two tests
+    // @param   startingOrder   The permutation to start from
+    void localSearch(std::uint64_t (&startingOrder)[N]) {
+        // Copy initial ordering
+        localOPT.cost = expectedCost(startingOrder);
+        for (std::size_t i = 0; i < N; ++i) {
+            localOPT.order[i] = startingOrder[i];
+        }
+
+        std::size_t bestSwapFrom = N, bestSwapTo = N;
+        do {
+            bestSwapFrom = bestSwapTo = N;
+            SCCPFloat bestCost = localOPT.cost; // Must beat current cost to be reasonable
+
+            // Check all possible swaps
+            for (std::size_t i = 0; i < N - 1; ++i) {
+                for (std::size_t j = i + 1; j < N; ++j) {
+                    std::swap(localOPT.order[i], localOPT.order[j]);
+
+                    // Compute the new cost of this neighbor
+                    SCCPFloat thisNeighborCost = expectedCost(localOPT.order);
+
+                    // Is it better than the previous swaps?
+                    if (thisNeighborCost < bestCost) {
+                        bestCost = thisNeighborCost;
+                        bestSwapFrom = i;
+                        bestSwapTo = j;
+                    }
+
+                    // Swap back so we can check the rest of the swaps
+                    std::swap(localOPT.order[i], localOPT.order[j]);
+                }
+            }
+
+            // Actually perform the swap found to be best
+            if (bestSwapFrom != N) {
+                std::swap(localOPT.order[bestSwapFrom], localOPT.order[bestSwapTo]);
+                localOPT.cost = bestCost;
+            }
+
+        } while (bestSwapFrom != N);
+    }
+
+    void localSearchFromGreedy() {
+        localSearch(greedy.order);
+    }
+
+    void localSearchFromRandom() {
+        std::uint64_t startingOrder[N];
+        for (std::size_t i = 0; i < N; ++i) { 
+            startingOrder[i] = i;
+        }
+
+        std::random_device rd;
+        std::mt19937 mersenne(rd()); // Mersenne Twister
+    
+        // Randomly shuffle the tests
+        std::shuffle(startingOrder, startingOrder + N, mersenne);
+
+        localSearch(startingOrder);
+    }
+
+    // Prints information about a local optimum
+    // @param   os  The stream to print to
+    // @return      The stream that was passed in, now modified
+    std::ostream& printLocalOPT(std::ostream& os) const {
+        os << "Local OPT:\n";
+        for (std::size_t i = 0; i < N; ++i) {
+            os << localOPT.order[i] << ' ';
+        }
+        os << "\nE[cost(LocalOPT, x)]: " << localOPT.cost << '\n';
+
+        #ifdef PRINT_MARKOV
+        printStateChain(os, localOPT.order);
+        #endif
+
+        return os;
+    }
 private:
     SCCPFloat distribution[N][D];
     NAStrategy OPT;
+    NAStrategy localOPT;
     NAStrategy greedy;
 };
 
@@ -418,13 +503,16 @@ int main() {
     for (std::size_t _ = 0; _ < 10; ++_) {
         SCCP sccp;
 
-        sccp.printDistribution(std::cout) << '\n';
+        // sccp.printDistribution(std::cout) << '\n';
 
         sccp.calculateGreedy();
         sccp.printGreedy(std::cout) << '\n';
 
-        sccp.calculateOPT();
-        sccp.printOPT(std::cout) << '\n';
+        sccp.localSearchFromGreedy();
+        sccp.printLocalOPT(std::cout) << '\n';
+
+        sccp.localSearchFromRandom();
+        sccp.printLocalOPT(std::cout) << '\n';
 
         std::cout << "\n==================================================================================================\n";
     }
