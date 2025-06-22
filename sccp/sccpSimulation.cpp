@@ -1,6 +1,6 @@
 // @file    sccpSimulation.cpp
 // @author  Evan Brody
-// @brief   Environment for simulating (nonadaptive) strategies for the stochastic coupon collection problem.
+// @brief   Environment for simulating (nonadaptive) strategies for the stochastic coupon collection problem
 //          Assumed unit-cost everywhere
 
 #include <random>
@@ -10,26 +10,31 @@
 #include <algorithm>
 #include <exception>
 
+// #define DEBUG
+#define PRINT_MARKOV
+#define PRINT_DICE_DISTS
+
 constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 10;    // Number of tests
+constexpr std::uint64_t N = 40;    // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
 // Making it a power of 2 minus one allows for fast modulo via bitwise AND
 constexpr std::uint64_t OPT_SEARCH_PRINT = (1 << 20) - 1;
-
-// #define DEBUG
-#define PRINT_MARKOV
-#define PRINT_DICE_DISTS
+#ifdef PRINT_MARKOV
+constexpr std::string_view WHITESPACE = "\t";
+#else
+constexpr std::string_view WHITESPACE = " "
+#endif
 
 typedef long double SCCPFloat;
 
 // Converts a state represented as a bitstring to a state represented as a string
-// Only configured for D = 3, 4
+// Only configured for D <= 4
 // @param   state   The state represented as a bitstring
 // @return          The state represented as a string
 std::string bitToStateString(std::uint64_t state) {
-    if (!(D == 3 || D == 4)) { return ""; }
+    if (!(D <= 4)) { return ""; }
 
     std::string stateString;
     for (std::size_t c = 0; c < D; ++c) {
@@ -102,10 +107,33 @@ class SCCP {
         SCCPFloat cost = N + 1;
     };
 public:
-    SCCP() {
-        // initDistribution();
-        initDistributionHighVariance();
+    SCCP(bool highVariance = false) : isHighVariance(highVariance) {
+        if (highVariance) {
+            initDistributionHighVariance();
+        } else {
+            initDistribution();
+        }
+
         initStates();
+    }
+
+    // Resets the state of the instance, including generating a fresh distribution
+    void reset() {
+        for (std::size_t i = 0; i < N; ++i) {
+            OPT.order[i] = N;
+            localOPT.order[i] = N;
+            greedy.order[i] = N;
+        }
+
+        OPT.cost = N + 1;
+        localOPT.cost = N + 1;
+        greedy.cost = N + 1;
+    
+        if (isHighVariance) {
+            initDistributionHighVariance();
+        } else {
+            initDistribution();
+        }
     }
 
     // We maintain an array of possible states, where a bit being 1 means we have a color in that state
@@ -408,29 +436,40 @@ public:
         } while (std::next_permutation(currentStrat, currentStrat + N));
     }
 
-    // Prints information about OPT, assuming it's been found
+    // Prints information about a given strategy
     // @param   os  The stream to print to
     // @return      The stream that was passed in, now modified
-    std::ostream& printOPT(std::ostream& os) const {
-        os << "OPT:                                                                    \n\t";
-        printOPTNotGreedy();
-        os << '\t';
-        for (std::size_t i = 0; i < N; ++i) {
-            os << OPT.order[i] << '\t';
+    std::ostream& printStrategy(std::ostream& os, const NAStrategy& strategy, std::string_view name) const {
+        os << name << ":                       \n";
+        if (name != "Greedy") {
+            printNotGreedy(strategy.order);
         }
-        os << "\nE[cost(OPT, x)]: " << OPT.cost << '\n';
+
+        for (std::size_t i = 0; i < N; ++i) {
+            os << strategy.order[i] << WHITESPACE;
+        }
+        os << "\nE[cost(" << name << ", x)]: " << strategy.cost << '\n';
 
         #ifdef PRINT_DICE_DISTS
-        printOrderDists(os << '\n', OPT.order);
+        printOrderDists(os << '\n', strategy.order);
         #endif
 
         #ifdef PRINT_MARKOV
-        printStateChain(os << '\n', OPT.order);
+        printStateChain(os << '\n', strategy.order);
         #endif
 
         return os;
     }
 
+    // Prints information about OPT, assuming it's been found
+    // @param   os  The stream to print to
+    // @return      The stream that was passed in, now modified
+    std::ostream& printOPT(std::ostream& os) const {
+        return printStrategy(os, OPT, "OPT");
+    }
+
+    // Generates a greedy strategy with some tests fixed in place at the start
+    // @param   order   The array to fill with the greedy strategy
     void greedyFixedTests(std::uint64_t (&order)[N]) {
         bool tested[N]; // Tracks which variables we've used so far
         for (std::size_t test = 0; test < N; ++test) {
@@ -520,225 +559,7 @@ public:
         }
     }
 
-    void doubleGreedyFixedTests(std::uint64_t (&order)[N]) {
-        bool tested[N]; // Tracks which variables we've used so far
-        for (std::size_t test = 0; test < N; ++test) {
-            tested[test] = false;
-        }
-
-        constexpr std::uint64_t numStates = 1 << D;
-        constexpr std::uint64_t stateFinished = numStates - 1;
-
-        // Set up initial state before the first test
-        SCCPFloat stateVectors[N + 1][numStates];
-        stateVectors[0][0] = 1.0f;
-        for (std::size_t state = 1; state < numStates; ++state) {
-            stateVectors[0][state] = 0.0f;
-        }
-
-        // Calculate the state changes from the fixed tests
-        std::size_t turn = 0;
-        while (order[turn] != N) {
-            stateVectors[turn + 1][0] = 0.0f;
-
-            for (std::size_t state = 1; state < numStates; ++state) {
-                stateVectors[turn + 1][state] = 0.0f;
-
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t colorBit = (1 << c);
-                    std::uint64_t gainedColorBit = colorBit & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    std::uint64_t stateMinusColor = colorBit ^ state;
-
-                    // Pr[got this color on this roll]
-                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][stateMinusColor];
-
-                    // Pr[had this color already, got it on this roll]
-                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][state];
-                }
-            }
-
-            tested[order[turn]] = true;
-            ++turn;
-        }
-
-        for (; turn < N; ++turn) {
-            if (turn == N - 1) {
-                for (std::size_t i = 0; i < N; ++i) {
-                    if (tested[i]) { continue; }
-
-                    order[N - 1] = i;
-                    goto finished;
-                }
-            }
-
-            std::size_t bestFirst = N;
-            std::size_t bestSecond = N;
-            SCCPFloat bestPairEval = -1.0f;
-
-            for (std::size_t firstCand = 0; firstCand < N; ++firstCand) {
-                if (tested[firstCand]) { continue; }
-                for (std::size_t secondCand = 0; secondCand < N; ++secondCand) {
-                    if (firstCand == secondCand) { continue; }
-                    if (tested[secondCand]) { continue; }
-
-                    SCCPFloat thisPairEval = 0.0f;
-
-                    stateVectors[turn + 1][0] = 0.0f;
-                    for (std::size_t state = 1; state < numStates; ++state) {
-                        stateVectors[turn + 1][state] = 0.0f;
-
-                        for (std::size_t c = 0; c < D; ++c) {
-                            std::uint64_t colorBit = (1 << c);
-                            std::uint64_t gainedColorBit = colorBit & state;
-                            if (0 == gainedColorBit) { continue; }
-
-                            std::uint64_t stateMinusColor = colorBit ^ state;
-
-                            // Pr[got this color on this roll]
-                            stateVectors[turn + 1][state] += distribution[firstCand][c] * stateVectors[turn][stateMinusColor];
-
-                            // Pr[had this color already, got it on this roll]
-                            stateVectors[turn + 1][state] += distribution[firstCand][c] * stateVectors[turn][state];
-                        }
-                    }
-
-                    thisPairEval += stateVectors[turn + 1][stateFinished];
-
-                    stateVectors[turn + 2][0] = 0.0f;
-                    for (std::size_t state = 1; state < numStates; ++state) {
-                        stateVectors[turn + 2][state] = 0.0f;
-
-                        for (std::size_t c = 0; c < D; ++c) {
-                            std::uint64_t colorBit = (1 << c);
-                            std::uint64_t gainedColorBit = colorBit & state;
-                            if (0 == gainedColorBit) { continue; }
-
-                            std::uint64_t stateMinusColor = colorBit ^ state;
-
-                            // Pr[got this color on this roll]
-                            stateVectors[turn + 2][state] += distribution[secondCand][c] * stateVectors[turn + 1][stateMinusColor];
-
-                            // Pr[had this color already, got it on this roll]
-                            stateVectors[turn + 2][state] += distribution[secondCand][c] * stateVectors[turn + 1][state];
-                        }
-                    }
-
-                    thisPairEval += stateVectors[turn + 2][stateFinished];
-
-                    if (thisPairEval > bestPairEval) {
-                        bestPairEval = thisPairEval;
-                        bestFirst = firstCand;
-                        bestSecond = secondCand;
-                    }
-                }
-            } // Pair search
-
-            order[turn] = bestFirst;
-            // order[turn + 1] = bestSecond;
-
-            tested[bestFirst] = true;
-            // tested[bestSecond] = true;
-
-            stateVectors[turn + 1][0] = 0.0f;
-            for (std::size_t state = 1; state < numStates; ++state) {
-                stateVectors[turn + 1][state] = 0.0f;
-
-                for (std::size_t c = 0; c < D; ++c) {
-                    std::uint64_t colorBit = (1 << c);
-                    std::uint64_t gainedColorBit = colorBit & state;
-                    if (0 == gainedColorBit) { continue; }
-
-                    std::uint64_t stateMinusColor = colorBit ^ state;
-
-                    // Pr[got this color on this roll]
-                    stateVectors[turn + 1][state] += distribution[bestFirst][c] * stateVectors[turn][stateMinusColor];
-
-                    // Pr[had this color already, got it on this roll]
-                    stateVectors[turn + 1][state] += distribution[bestFirst][c] * stateVectors[turn][state];
-                }
-            }
-
-            // stateVectors[turn + 2][0] = 0.0f;
-            // for (std::size_t state = 1; state < numStates; ++state) {
-            //     stateVectors[turn + 2][state] = 0.0f;
-
-            //     for (std::size_t c = 0; c < D; ++c) {
-            //         std::uint64_t colorBit = (1 << c);
-            //         std::uint64_t gainedColorBit = colorBit & state;
-            //         if (0 == gainedColorBit) { continue; }
-
-            //         std::uint64_t stateMinusColor = colorBit ^ state;
-
-            //         // Pr[got this color on this roll]
-            //         stateVectors[turn + 2][state] += distribution[bestSecond][c] * stateVectors[turn + 1][stateMinusColor];
-
-            //         // Pr[had this color already, got it on this roll]
-            //         stateVectors[turn + 2][state] += distribution[bestSecond][c] * stateVectors[turn + 1][state];
-            //     }
-            // }
-        }
-
-        finished:
-    }
-
-    void calculateDoubleGreedy() {
-        doubleGreedy.cost = N;
-
-        std::uint64_t currentPerm[N];
-
-        for (std::size_t first = 0; first < N - 1; ++first) {
-            for (std::size_t second = first + 1; second < N; ++second) {
-                currentPerm[0] = first;
-                currentPerm[1] = second;
-
-                for (std::size_t i = 2; i < N; ++i) {
-                    currentPerm[i] = N;
-                }
-
-                doubleGreedyFixedTests(currentPerm);
-                SCCPFloat thisStratCost = expectedCost(currentPerm);
-
-                if (thisStratCost < doubleGreedy.cost) {
-                    doubleGreedy.cost = thisStratCost;
-                    for (std::size_t i = 0; i < N; ++i) {
-                        doubleGreedy.order[i] = currentPerm[i];
-                    }
-                }
-            }
-        }
-    }
-
-    // Prints information about Double Greedy
-    // @param   os  The stream to print to
-    // @return      The stream that was passed in, now modified
-    std::ostream& printDoubleGreedy(std::ostream& os) const {
-        os << "DGreedy:\n";
-        #ifdef PRINT_MARKOV
-        os << '\t';
-        #endif
-        for (std::size_t i = 0; i < N; ++i) {
-            os << doubleGreedy.order[i];
-            #ifdef PRINT_MARKOV
-            os << '\t';
-            #else
-            os << ' ';
-            #endif
-        }
-        os << "\nE[cost(DGreedy, x)]: " << doubleGreedy.cost << '\n';
-
-        #ifdef PRINT_DICE_DISTS
-        printOrderDists(os << '\n', doubleGreedy.order);
-        #endif
-
-        #ifdef PRINT_MARKOV
-        printStateChain(os << '\n', doubleGreedy.order);
-        #endif
-
-        return os;
-    }
-
+    // Generates a greedy strategy by brute-forcing the first test, then proceeding greedily from there
     void calculateGreedy() {
         std::uint64_t currentGreedy[N];
 
@@ -768,21 +589,7 @@ public:
     // @param   os  The stream to print to
     // @return      The stream that was passed in, now modified
     std::ostream& printGreedy(std::ostream& os) const {
-        os << "Greedy:\n\t";
-        for (std::size_t i = 0; i < N; ++i) {
-            os << greedy.order[i] << '\t';
-        }
-        os << "\nE[cost(Greedy, x)]: " << greedy.cost << '\n';
-
-        #ifdef PRINT_DICE_DISTS
-        printOrderDists(os << '\n', greedy.order);
-        #endif
-
-        #ifdef PRINT_MARKOV
-        printStateChain(os << '\n', greedy.order);
-        #endif
-
-        return os;
+        return printStrategy(os, greedy, "Greedy");
     }
 
     // Performs a local search from the given starting point
@@ -837,10 +644,6 @@ public:
         return localSearch(greedy.order);
     }
 
-    std::uint64_t localSearchFromDoubleGreedy() {
-        return localSearch(doubleGreedy.order);
-    }
-
     std::uint64_t localSearchFromRandom() {
         std::uint64_t startingOrder[N];
         for (std::size_t i = 0; i < N; ++i) { 
@@ -860,26 +663,12 @@ public:
     // @param   os  The stream to print to
     // @return      The stream that was passed in, now modified
     std::ostream& printLocalOPT(std::ostream& os) const {
-        os << "Local OPT:\n";
-        for (std::size_t i = 0; i < N; ++i) {
-            os << localOPT.order[i] << ' ';
-        }
-        os << "\nE[cost(LocalOPT, x)]: " << localOPT.cost << '\n';
-
-        #ifdef PRINT_DICE_DISTS
-        printOrderDists(os << '\n', localOPT.order);
-        #endif
-
-        #ifdef PRINT_MARKOV
-        printStateChain(os << '\n', localOPT.order);
-        #endif
-
-        return os;
+        return printStrategy(os, localOPT, "Local OPT");
     }
 
-    // Prints "X" markers above the tests where OPT does not behave greedily
-    // Should only be called just prior to printing OPT.order
-    void printOPTNotGreedy() const {
+    // Prints "X" markers above the tests where the order does not behave greedily
+    // Should only be called just prior to printing the order
+    void printNotGreedy(const std::uint64_t (&order)[N]) const {
         bool tested[N];
         for (std::size_t i = 0; i < N; ++i) {
             tested[i] = false;
@@ -895,8 +684,8 @@ public:
         }
 
         for (std::size_t i = 0; i < D; ++i) {
-            std::cout << "\t";
-            tested[OPT.order[i]] = true;
+            std::cout << "__";
+            tested[order[i]] = true;
 
             for (std::size_t state = 0; state < numStates; ++state) {
                 stateVectors[i + 1][state] = 0.0f;
@@ -908,7 +697,7 @@ public:
                     std::uint64_t stateMinusColor = state ^ colorBit;
 
                     stateVectors[i + 1][state] +=
-                    distribution[OPT.order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
+                    distribution[order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
                 }
             }
         }
@@ -940,13 +729,13 @@ public:
                 }
             }
 
-            if (bestTest != OPT.order[i]) {
-                std::cout << "X\t";
+            if (bestTest != order[i]) {
+                std::cout << "X_";
             } else {
-                std::cout << "\t";
+                std::cout << "__";
             }
 
-            tested[OPT.order[i]] = true;
+            tested[order[i]] = true;
 
             for (std::size_t state = 0; state < numStates; ++state) {
                 stateVectors[i + 1][state] = 0.0f;
@@ -958,7 +747,7 @@ public:
                     std::uint64_t stateMinusColor = state ^ colorBit;
 
                     stateVectors[i + 1][state] +=
-                    distribution[OPT.order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
+                    distribution[order[i]][c] * (stateVectors[i][stateMinusColor] + stateVectors[i][state]);
                 }
             }
         }
@@ -974,53 +763,51 @@ public:
         return greedy.cost;
     }
 
-    SCCPFloat getDoubleGreedyCost() const {
-        return doubleGreedy.cost;
+    SCCPFloat getLocalOPTCost() const {
+        return localOPT.cost;
     }
 
 private:
     SCCPFloat distribution[N][D];
     std::uint64_t states[1 << D];
 
+    bool isHighVariance;
+
     NAStrategy OPT;
     NAStrategy localOPT;
     NAStrategy greedy;
-    NAStrategy doubleGreedy;
 };
 
 int main() {
-    for (std::size_t _ = 0; _ < 100; ++_) {
-        SCCP sccp;
+    constexpr std::uint64_t ITER_COUNT = 1000;
 
-        sccp.printDistribution(std::cout) << '\n';
+    SCCPFloat maxRatio = 0.0f;
+    std::uint64_t maxIndex = ITER_COUNT;
+    SCCP maxInstance(true);
+    SCCP currentInstance(true);
 
-        sccp.calculateGreedy();
-        sccp.printGreedy(std::cout) << '\n';
+    for (std::size_t i = 0; i < ITER_COUNT; ++i) {
 
-        // sccp.calculateDoubleGreedy();
-        // sccp.printDoubleGreedy(std::cout) << '\n';
+        currentInstance.calculateGreedy();
+        currentInstance.localSearchFromGreedy();
 
-        // std::cout << "STEPS TO CONVERGENCE: ";
-        // std::uint64_t stepsToConvergence = sccp.localSearchFromDoubleGreedy();
-        // std::cout << stepsToConvergence << '\n';
+        SCCPFloat thisRatio = currentInstance.getGreedyCost() / currentInstance.getLocalOPTCost();
 
-        // if (stepsToConvergence > 0) {
-        //     sccp.printDoubleGreedy(std::cout) << '\n';
-        //     sccp.printLocalOPT(std::cout) << '\n';
-        //     sccp.calculateDoubleGreedy();
-        // }
+        if (thisRatio > maxRatio) {
+            maxRatio = thisRatio;
+            maxInstance = currentInstance;
+        }
 
+        // if (((i + 1) & 127) == 0)
+            std::cout << i + 1 << " / " << ITER_COUNT << '\r';
 
-        // if (sccp.getGreedyCost() == sccp.getDoubleGreedyCost()) {
-        //     std::cout << "\n==================================================================================================\n";
-        //     continue;
-        // }
-
-        sccp.calculateOPT();
-        sccp.printOPT(std::cout) << '\n';
-
-        std::cout << "\n==================================================================================================\n";
+        currentInstance.reset();
     }
+
+    maxInstance.printGreedy(std::cout) << '\n';
+    maxInstance.printLocalOPT(std::cout) << '\n';
+
+    std::cout << "ratio: " << maxRatio << '\n';
     
     return 0;
 }
