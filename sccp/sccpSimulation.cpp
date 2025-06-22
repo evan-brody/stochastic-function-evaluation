@@ -11,20 +11,21 @@
 #include <exception>
 
 // #define DEBUG
-#define PRINT_MARKOV
-#define PRINT_DICE_DISTS
+// #define PRINT_MARKOV
+// #define PRINT_DICE_DISTS
 
 constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 40;    // Number of tests
+constexpr std::uint64_t N = 50;     // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
 // Making it a power of 2 minus one allows for fast modulo via bitwise AND
 constexpr std::uint64_t OPT_SEARCH_PRINT = (1 << 20) - 1;
+
 #ifdef PRINT_MARKOV
 constexpr std::string_view WHITESPACE = "\t";
 #else
-constexpr std::string_view WHITESPACE = " "
+constexpr std::string_view WHITESPACE = " ";
 #endif
 
 typedef long double SCCPFloat;
@@ -182,6 +183,7 @@ public:
     void initDistributionHighVariance() {
         std::random_device rd; // Seed for Mersenne Twister
         std::mt19937 mersenne(rd()); // Mersenne Twister
+
         std::uniform_int_distribution<std::uint64_t> uniformDice(0, D);
         std::uniform_real_distribution uniform01(0.0f, 1.0f);
 
@@ -283,11 +285,10 @@ public:
 
                     std::uint64_t stateMinusColor = colorBit ^ state;
 
-                    // Pr[got this color on this roll]
-                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][stateMinusColor];
-
-                    // Pr[had this color already, got it on this roll]
-                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][state];
+                    // Pr[got this color on this roll
+                    //    OR had this color already, got it on this roll]
+                    stateVector[i][state] += 
+                    distribution[test][c] * (stateVector[i - 1][stateMinusColor] + stateVector[i - 1][state]);
                 }
 
                 if (state != stateFinished) {
@@ -346,11 +347,10 @@ public:
 
                     std::uint64_t stateMinusColor = colorBit ^ state;
 
-                    // Pr[got this color on this roll]
-                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][stateMinusColor];
-
-                    // Pr[had this color already, got it on this roll]
-                    stateVector[i][state] += distribution[test][c] * stateVector[i - 1][state];
+                    // Pr[got this color on this roll
+                    //    OR had this color already, got it on this roll]
+                    stateVector[i][state] += 
+                    distribution[test][c] * (stateVector[i - 1][stateMinusColor] + stateVector[i - 1][state]);
                 }
 
                 if (state != stateFinished) {
@@ -501,11 +501,10 @@ public:
 
                     std::uint64_t stateMinusColor = colorBit ^ state;
 
-                    // Pr[got this color on this roll]
-                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][stateMinusColor];
-
-                    // Pr[had this color already, got it on this roll]
-                    stateVectors[turn + 1][state] += distribution[order[turn]][c] * stateVectors[turn][state];
+                    // Pr[got this color on this roll
+                    //    OR had this color already, got it on this roll]
+                    stateVectors[turn + 1][state] +=
+                    distribution[order[turn]][c] * (stateVectors[turn][stateMinusColor] + stateVectors[turn][state]);
                 }
             }
 
@@ -607,7 +606,7 @@ public:
         std::size_t bestSwapFrom = N, bestSwapTo = N;
         do {
             bestSwapFrom = bestSwapTo = N;
-            SCCPFloat bestCost = localOPT.cost - std::numeric_limits<SCCPFloat>::epsilon(); // Must beat current cost to be reasonable
+            SCCPFloat bestCost = localOPT.cost - std::numeric_limits<SCCPFloat>::epsilon(); // Must beat current cost by at least epsilon to be reasonable
 
             // Check all possible swaps
             for (std::size_t i = 0; i < N - 1; ++i) {
@@ -779,14 +778,15 @@ private:
 };
 
 int main() {
-    constexpr std::uint64_t ITER_COUNT = 1000;
+    constexpr std::uint64_t ITER_COUNT = 100000;
 
     SCCPFloat maxRatio = 0.0f;
     std::uint64_t maxIndex = ITER_COUNT;
+
     SCCP maxInstance(true);
     SCCP currentInstance(true);
 
-    for (std::size_t i = 0; i < ITER_COUNT; ++i) {
+    for (std::size_t i = 1; i <= ITER_COUNT; ++i) {
 
         currentInstance.calculateGreedy();
         currentInstance.localSearchFromGreedy();
@@ -798,8 +798,9 @@ int main() {
             maxInstance = currentInstance;
         }
 
-        // if (((i + 1) & 127) == 0)
-            std::cout << i + 1 << " / " << ITER_COUNT << '\r';
+        if ((i & 127) == 0) {
+            std::cout << i << " / " << ITER_COUNT << '\r';
+        }
 
         currentInstance.reset();
     }
@@ -807,7 +808,7 @@ int main() {
     maxInstance.printGreedy(std::cout) << '\n';
     maxInstance.printLocalOPT(std::cout) << '\n';
 
-    std::cout << "ratio: " << maxRatio << '\n';
+    std::cout << "Ratio: " << maxRatio << '\n';
     
     return 0;
 }
