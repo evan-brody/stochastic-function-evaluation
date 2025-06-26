@@ -8,8 +8,10 @@
 #include <limits>
 #include <cassert>
 
-#define D 7 // Sides on a die
-#define N 10 // Number of dice
+constexpr std::size_t D = 3; // Sides on a die
+constexpr std::size_t N = 11; // Number of dice
+
+#define PRINT_MARKOV
 
 typedef double NAEfloat;
 
@@ -27,7 +29,7 @@ std::ostream& roundPrint(std::ostream& os, NAEfloat num) {
 // @param   orderA  The first ordering
 // @param   orderB  The second ordering
 // @return          Minimum i such that orderA[i] != orderB[i]
-unsigned findFirstDiscrepancy(const unsigned* orderA, const unsigned* orderB) {
+std::size_t findFirstDiscrepancy(const std::size_t* orderA, const std::size_t* orderB) {
     for (std::size_t i = 0; i < N; ++i) {
         if (orderA[i] != orderB[i]) { return i; }
     }
@@ -35,17 +37,38 @@ unsigned findFirstDiscrepancy(const unsigned* orderA, const unsigned* orderB) {
     return N;
 }
 
+std::string colorNumberToString(std::size_t c) {
+    switch (c) {
+        case 1:
+            return "R";
+        case 2:
+            return "G";
+        case 3:
+            return "B";
+        case 4:
+            return "Y";
+        case 5:
+            return "P";
+    }
+
+    return "?";
+}
+
 // Class for representing the NAE function and testing strategies for evaluation
 class NAE {
     // Represents a nonadaptive strategy
     struct NAStrategy {
-        unsigned order[N];
+        std::size_t order[N];
         NAEfloat cost = N;
     };
 
 public:
-    NAE() {
-        initDistribution();
+    NAE(bool highVariance = true) : highVariance(highVariance) {
+        if (highVariance) {
+            initDistributionHighVariance();
+        } else {
+            initDistribution();
+        }
     }
 
     // Resets the state of the simulator
@@ -58,7 +81,12 @@ public:
             greedy.order[i] = N;
         }
 
-        initDistribution(); // Get a fresh distribution
+        // Get a fresh distribution
+        if (highVariance) {
+            initDistributionHighVariance();
+        } else {
+            initDistribution();
+        }
     }
 
     /// DISTRIBUTION ///
@@ -88,6 +116,62 @@ public:
         }
     }
 
+    void initDistributionHighVariance() {
+        std::random_device rd; // Seed for Mersenne Twister
+        std::mt19937 mersenne(rd()); // Mersenne Twister
+
+        std::uniform_int_distribution<std::uint64_t> uniformDice(0, D);
+        std::uniform_real_distribution uniform01(0.0f, 1.0f);
+
+        for (std::size_t die = 0; die < N; ++die) {
+            std::size_t biasedDie = uniformDice(mersenne);
+            if (biasedDie == D) {
+                for (std::size_t c = 0; c < D - 1; ++c) {
+                    distribution[die][c] = uniform01(mersenne);
+                }
+                distribution[die][D - 1] = 1.0f;
+
+                // Entry D - 1 is already sorted, so don't include
+                std::sort(
+                    distribution[die],
+                    distribution[die] + D - 1
+                );
+
+                // Calculate the space between markers
+                // No need to change entry 0
+                for (std::size_t c = D; c-- > 1;) {
+                    distribution[die][c] -= distribution[die][c - 1];
+                }
+            } else {
+                distribution[die][biasedDie] = pow(uniform01(mersenne), 0.75f);
+
+                NAEfloat otherProbs[D - 1];
+                for (std::size_t c = 0; c < D - 2; ++c) {
+                    otherProbs[c] = uniform01(mersenne);
+                }
+                otherProbs[D - 2] = 1.0f;
+
+                std::sort(
+                    otherProbs,
+                    otherProbs + D - 1
+                );
+
+                for (std::size_t c = D; c-- > 1;) {
+                    otherProbs[c] -= otherProbs[c - 1];
+                }
+
+                NAEfloat scale = 1.0f - distribution[die][biasedDie];
+                std::size_t otherProbsIndex = 0;
+                for (std::size_t c = 0; c < D; ++c) {
+                    if (c == biasedDie) { continue; }
+
+                    distribution[die][c] = otherProbs[otherProbsIndex] * scale;
+                    ++otherProbsIndex;
+                }
+            }
+        }
+    }
+
 
     // Prints the distribution in a readable format
     // @param   os  The stream to print to
@@ -104,10 +188,71 @@ public:
         return os;
     }
 
+    std::ostream& printStateChain(std::ostream& os, const std::size_t (&order)[N]) const {
+        NAEfloat stateVectors[N + 1][D + 2];
+        constexpr std::size_t numStates = D + 2;
+        constexpr std::size_t stateFinished = D + 1;
+
+
+        stateVectors[0][0] = 1.0f;
+        for (std::size_t state = 1; state < numStates; ++state) {
+            stateVectors[0][state] = 0.0f;
+        }
+
+        // Handle first turn separately
+        stateVectors[1][0] = stateVectors[1][stateFinished] = 0.0f;
+        for (std::size_t c = 1; c <= D; ++c) {
+            stateVectors[1][c] = distribution[order[0]][c];
+        }
+
+        // Handle the rest of the turns
+        for (std::size_t turn = 1; turn < N; ++turn) {
+            stateVectors[turn + 1][0] = 0.0f;
+
+            NAEfloat totalNotFinished = 0.0f;
+            for (std::size_t c = 1; c <= D; ++c) {
+                stateVectors[turn + 1][c] = stateVectors[turn][c] * distribution[order[turn]][c];
+                totalNotFinished += stateVectors[turn + 1][c];
+            }
+
+            stateVectors[turn + 1][stateFinished] = 1.0f - totalNotFinished;
+        }
+
+        // Biases
+        os << '\t';
+        for (std::size_t turn = 1; turn < N; ++turn) {
+            std::size_t biasedColor = 1;
+            for (std::size_t c = 2; c <= D; ++c) {
+                if (stateVectors[turn][c] > stateVectors[turn][biasedColor]) {
+                    biasedColor = c;
+                }
+            }
+
+            os << colorNumberToString(biasedColor) << '\t';
+        }
+        os << '\n';
+
+        // Print
+        for (std::size_t state = 0; state < numStates; ++state) {
+            if (1 <= state && state <= D) {
+                os << colorNumberToString(state);
+            }
+            os << '\t';
+
+            // Only go up to N because we don't care about the last turn
+            for (std::size_t turn = 0; turn < N; ++turn) {
+                roundPrint(os, stateVectors[turn][state]) << '\t';
+            }
+            os << '\n';
+        }
+        
+        return os;
+    }
+
     /// UTILITY ///
 
     // Expected cost, limited to n steps at most
-    NAEfloat expectedCostTruncated(const unsigned* order, unsigned n) const {
+    NAEfloat expectedCostTruncated(const std::size_t* order, std::size_t n) const {
         assert(n >= 2);
 
         // prAllThis[c] = Pr[only seen color c]
@@ -132,7 +277,7 @@ public:
     }
 
     // Calculates the expected cost of a strategy WRT the current distribution
-    NAEfloat expectedCost(const unsigned* order) const {
+    NAEfloat expectedCost(const std::size_t* order) const {
         return expectedCostTruncated(order, N);
     }
 
@@ -140,7 +285,7 @@ public:
 
     // Brute-force search for the optimal nonadaptive strategy
     void calculateOPT() {
-        unsigned currentStrat[N];
+        std::size_t currentStrat[N];
 
         // Array must start sorted for next_permutation to cover all permutations
         for (std::size_t i = 0; i < N; ++i) {
@@ -159,22 +304,30 @@ public:
         } while (std::next_permutation(currentStrat, currentStrat + N));
     }
 
-    // Prints information about OPT
-    std::ostream& printOPT(std::ostream& os) const {
-        os << "OPT:\n";
+    std::ostream& printStrategy(std::ostream& os, const NAStrategy& strategy, std::string_view name) const {
+        os << name << ":\n";
         for (std::size_t i = 0; i < N; ++i) {
-            os << OPT.order[i] << ' ';
+            os << strategy.order[i] << ' ';
         }
-        os << "\nE[cost(OPT, x)]: " << OPT.cost;
+        os << "\nE[cost(" << name << ")]: " << strategy.cost << '\n';
+
+        #ifdef PRINT_MARKOV
+        printStateChain(os, strategy.order);
+        #endif
 
         return os;
+    }
+
+    // Prints information about OPT
+    std::ostream& printOPT(std::ostream& os) const {
+        return printStrategy(os, OPT, "OPT");
     }
 
     /// GREEDY ///
 
     // Generates the standard greedy ordering
     void generateGreedy() {
-        unsigned currentGreedy[N];
+        std::size_t currentGreedy[N];
 
         // Brute-force to see which test to do first
         for (std::size_t i = 0; i < N; ++i) {
@@ -198,7 +351,7 @@ public:
 
     // Performs slightly better but still not optimal
     void generateGreedyAlternate() {
-        unsigned currentGreedy[N]; // Used to hold candidate strategies
+        std::size_t currentGreedy[N]; // Used to hold candidate strategies
         bool tested[N]; // tested[i] = have we used up variable i yet ?
         for (std::size_t i = 0; i < N; ++i) {
             tested[i] = false;
@@ -237,7 +390,7 @@ public:
     }
 
     // Generates a greedy strategy that must begin with a certain sequence of tests
-    void generateGreedyWithFixedTests(unsigned* order) const {
+    void generateGreedyWithFixedTests(std::size_t* order) const {
         // prAllThis[c] = Pr[only seen color c]
         NAEfloat prAllThis[D];
         for (std::size_t c = 0; c < D; ++c) {
@@ -249,7 +402,7 @@ public:
             tested[i] = false;
         }
 
-        unsigned numAdded = 0;
+        std::size_t numAdded = 0;
 
         // Get info from predetermined ordering
         std::size_t i = 0;
@@ -267,7 +420,7 @@ public:
         // Continually add tests to the strategy until we're finished
         while (numAdded < N) {
             // Search for the next best test
-            unsigned bestTest = N;
+            std::size_t bestTest = N;
 
             // Pr[we perform this test]
             // Lower is better
@@ -294,7 +447,7 @@ public:
     }
 
     // Metric that the greedy algorithm uses
-    NAEfloat evalTest(const NAEfloat* prAllThis, unsigned test) const {
+    NAEfloat evalTest(const NAEfloat* prAllThis, std::size_t test) const {
         NAEfloat eval = 0.0f;
         for (std::size_t c = 0; c < D; ++c) {
             eval += prAllThis[c] * distribution[test][c];
@@ -302,13 +455,14 @@ public:
 
         return eval;
     }
+
     // Alternate metric for the greedy algorithm
-    NAEfloat evalTestAlternate(const NAEfloat* prAllThis, unsigned test) const {
+    NAEfloat evalTestAlternate(const NAEfloat* prAllThis, std::size_t test) const {
         NAEfloat eval = 0.0f;
 
         // Find the most likely color to have kept us going
-        unsigned mostLikelyColor = N;
-        unsigned prMostLikelyColor = 0.0f;
+        std::size_t mostLikelyColor = N;
+        std::size_t prMostLikelyColor = 0.0f;
         for (std::size_t c = 0; c < D; ++c) {
             if (prAllThis[c] > prMostLikelyColor) {
                 prMostLikelyColor = prAllThis[c];
@@ -329,17 +483,11 @@ public:
 
     // Prints information about the generated greedy strategy
     std::ostream& printGreedy(std::ostream& os) const {
-        os << "Greedy:\n";
-        for (std::size_t i = 0; i < N; ++i) {
-            os << greedy.order[i] << ' ';
-        }
-        os << "\nE[cost(Greedy, x)]: " << greedy.cost;
-
-        return os;
+        return printStrategy(os, greedy, "Greedy");
     }
 
-    void initLocalSearchCostTables(const unsigned* startingOrder) {
-        unsigned first = startingOrder[0];
+    void initLocalSearchCostTables(const std::size_t* startingOrder) {
+        std::size_t first = startingOrder[0];
 
         // prOnly[c][i] = Pr[only seen color c after rolling (i + 1)th die]
         for (std::size_t c = 0; c < D; ++c) {
@@ -375,7 +523,7 @@ public:
 
     std::uint64_t localSearch() {
         // Start from a random ordering
-        unsigned order[N];
+        std::size_t order[N];
         for (std::size_t i = 0; i < N; ++i) {
             order[i] = i;
         }
@@ -423,7 +571,7 @@ public:
     }
 
     // Assumes i < j
-    NAEfloat gainFromSwap(const unsigned* order, std::size_t i, std::size_t j) {
+    NAEfloat gainFromSwap(const std::size_t* order, std::size_t i, std::size_t j) {
         NAEfloat gain = 0.0f;
         for (std::size_t c = 0; c < D; ++c) {
             // We'll need to divide by pi, then multiply by pj, so we precompute that
@@ -435,7 +583,7 @@ public:
         return gain;
     }
 
-    void updateLocalSearchCostTables(const unsigned* order, std::size_t from, std::size_t to) {
+    void updateLocalSearchCostTables(const std::size_t* order, std::size_t from, std::size_t to) {
         for (std::size_t c = 0; c < D; ++c) {
             NAEfloat changeFactor = distribution[order[from]][c] / distribution[order[to]][c];
             for (std::size_t i = from; i < to; ++i) {
@@ -455,7 +603,7 @@ public:
         }
     }
 
-    double greedyAdaptiveFromFirstTest(unsigned first) {
+    double greedyAdaptiveFromFirstTest(std::size_t first) {
         bool tested[N];
         for (std::size_t i = 0; i < N; ++i) {
             tested[i] = false;
@@ -465,6 +613,8 @@ public:
         return 0.0f;
     }
 private:
+    bool highVariance;
+
     NAEfloat distribution[N][D];
     NAStrategy OPT;
     NAStrategy greedy;
@@ -476,19 +626,18 @@ private:
 };
 
 int main() {
-    NAE nae;
+    NAE nae(false);
 
-    for (std::size_t i = 0; i < 1; ++i) {
+    for (std::size_t i = 0; i < 10; ++i) {
         nae.calculateOPT();
         nae.printOPT(std::cout) << '\n';
 
         nae.generateGreedy();
         nae.printGreedy(std::cout) << '\n';
 
-        // std::uint64_t stepCount = nae.localSearch();
-        // std::cout << "Steps: " << stepCount << std::endl;
-
         nae.reset();
+
+        std::cout << "------------------------------------------------------------------\n";
     }
 
     return 0;

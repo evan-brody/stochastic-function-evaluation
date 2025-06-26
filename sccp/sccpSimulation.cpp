@@ -15,7 +15,7 @@
 // #define PRINT_DICE_DISTS
 
 constexpr std::uint64_t D = 3;      // Number of coupons
-constexpr std::uint64_t N = 50;     // Number of tests
+constexpr std::uint64_t N = 20;     // Number of tests
 
 // When we're searching for the optimal strategy, we print our progress
 //      every OPT_SEARCH_PRINT permutations checked
@@ -778,7 +778,7 @@ private:
 };
 
 int main() {
-    constexpr std::uint64_t ITER_COUNT = 100000;
+    constexpr std::uint64_t ITER_COUNT = 1000000;
 
     SCCPFloat maxRatio = 0.0f;
     std::uint64_t maxIndex = ITER_COUNT;
@@ -791,10 +791,15 @@ int main() {
         currentInstance.calculateGreedy();
         currentInstance.localSearchFromGreedy();
 
-        SCCPFloat thisRatio = currentInstance.getGreedyCost() / currentInstance.getLocalOPTCost();
+        SCCPFloat greedyLocalRatio = currentInstance.getGreedyCost() / currentInstance.getLocalOPTCost();
+        
+        currentInstance.localSearchFromRandom();
 
-        if (thisRatio > maxRatio) {
-            maxRatio = thisRatio;
+        SCCPFloat randomLocalRatio = currentInstance.getGreedyCost() / currentInstance.getLocalOPTCost();
+        SCCPFloat worseRatio = std::max(greedyLocalRatio, randomLocalRatio);
+
+        if (worseRatio > maxRatio) {
+            maxRatio = worseRatio;
             maxInstance = currentInstance;
         }
 
@@ -805,6 +810,7 @@ int main() {
         currentInstance.reset();
     }
 
+    maxInstance.printDistribution(std::cout) << '\n';
     maxInstance.printGreedy(std::cout) << '\n';
     maxInstance.printLocalOPT(std::cout) << '\n';
 
