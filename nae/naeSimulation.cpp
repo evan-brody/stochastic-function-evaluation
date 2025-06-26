@@ -595,23 +595,6 @@ public:
             }
         }
     }
-
-    void greedyAdaptive() {
-
-        for (std::size_t i = 0; i < N; ++i) {
-
-        }
-    }
-
-    double greedyAdaptiveFromFirstTest(std::size_t first) {
-        bool tested[N];
-        for (std::size_t i = 0; i < N; ++i) {
-            tested[i] = false;
-        }
-        tested[first] = true;
-
-        return 0.0f;
-    }
 private:
     bool highVariance;
 
