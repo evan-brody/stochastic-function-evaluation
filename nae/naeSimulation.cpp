@@ -7,13 +7,14 @@
 #include <iostream>
 #include <limits>
 #include <cassert>
+#include <string>
 
 constexpr std::size_t D = 3; // Sides on a die
-constexpr std::size_t N = 11; // Number of dice
+constexpr std::size_t N = 6; // Number of dice
 
 #define PRINT_MARKOV
 
-typedef double NAEfloat;
+typedef long double NAEfloat;
 
 // Prints a number rounded to 3 decimal places
 // @param   os  The stream to print to
@@ -180,7 +181,7 @@ public:
         // Rows are dice, columns are colors
         for (std::size_t i = 0; i < N; ++i) {
             for (std::size_t c = 0; c < D; ++c) {
-                roundPrint(os, distribution[i][c]) << '\t';
+                roundPrint(os, distribution[i][c]) << "\t\t";
             }
             os << '\n';
         }
@@ -189,10 +190,10 @@ public:
     }
 
     std::ostream& printStateChain(std::ostream& os, const std::size_t (&order)[N]) const {
-        NAEfloat stateVectors[N + 1][D + 2];
         constexpr std::size_t numStates = D + 2;
-        constexpr std::size_t stateFinished = D + 1;
+        constexpr std::size_t stateFinished = numStates - 1;
 
+        NAEfloat stateVectors[N + 1][numStates];
 
         stateVectors[0][0] = 1.0f;
         for (std::size_t state = 1; state < numStates; ++state) {
@@ -202,7 +203,7 @@ public:
         // Handle first turn separately
         stateVectors[1][0] = stateVectors[1][stateFinished] = 0.0f;
         for (std::size_t c = 1; c <= D; ++c) {
-            stateVectors[1][c] = distribution[order[0]][c];
+            stateVectors[1][c] = distribution[order[0]][c - 1];
         }
 
         // Handle the rest of the turns
@@ -211,7 +212,7 @@ public:
 
             NAEfloat totalNotFinished = 0.0f;
             for (std::size_t c = 1; c <= D; ++c) {
-                stateVectors[turn + 1][c] = stateVectors[turn][c] * distribution[order[turn]][c];
+                stateVectors[turn + 1][c] = stateVectors[turn][c] * distribution[order[turn]][c - 1];
                 totalNotFinished += stateVectors[turn + 1][c];
             }
 
@@ -219,7 +220,7 @@ public:
         }
 
         // Biases
-        os << '\t';
+        os << "\t\t\t\t";
         for (std::size_t turn = 1; turn < N; ++turn) {
             std::size_t biasedColor = 1;
             for (std::size_t c = 2; c <= D; ++c) {
@@ -228,7 +229,13 @@ public:
                 }
             }
 
-            os << colorNumberToString(biasedColor) << '\t';
+            std::string biasString;
+            for (std::size_t c = 1; c <= D; ++c) {
+                if (c == biasedColor) { continue; }
+                biasString += colorNumberToString(c);
+            }
+
+            os << biasString << "\t\t";
         }
         os << '\n';
 
@@ -237,15 +244,37 @@ public:
             if (1 <= state && state <= D) {
                 os << colorNumberToString(state);
             }
-            os << '\t';
+            os << "\t\t";
 
             // Only go up to N because we don't care about the last turn
             for (std::size_t turn = 0; turn < N; ++turn) {
-                roundPrint(os, stateVectors[turn][state]) << '\t';
+                std::string toOutput(std::to_string(stateVectors[turn][state]));
+                os << toOutput << "\t";
+                // roundPrint(os, stateVectors[turn][state]) << '\t';
             }
             os << '\n';
         }
         
+        return os;
+    }
+
+    // Prints the dice in a permutation as their distributions on [d]
+    // @param   os      The stream to print to
+    // @param   order   The ordering to print
+    // @return          The stream that was passed in, now modified
+    std::ostream& printOrderDists(std::ostream& os, const std::size_t (&order)[N]) const {
+        for (std::size_t c = 0; c < D; ++c) {
+            #ifdef PRINT_MARKOV
+            os << "\t\t";
+            #endif
+            for (std::size_t i = 0; i < N; ++i) {
+                std::string toPrint(std::to_string(distribution[order[i]][c]));
+                os << toPrint << "\t";
+            }
+
+            os << '\n';
+        }
+
         return os;
     }
 
@@ -277,8 +306,41 @@ public:
     }
 
     // Calculates the expected cost of a strategy WRT the current distribution
-    NAEfloat expectedCost(const std::size_t* order) const {
-        return expectedCostTruncated(order, N);
+    NAEfloat expectedCost(const std::size_t (&order)[N]) const {
+        constexpr std::size_t numStates = D + 2;
+        constexpr std::size_t stateFinished = numStates - 1;
+
+        NAEfloat stateVectors[N + 1][numStates];
+
+        stateVectors[0][0] = 1.0f;
+        for (std::size_t state = 1; state < numStates; ++state) {
+            stateVectors[0][state] = 0.0f;
+        }
+
+        // Handle first turn separately
+        stateVectors[1][0] = stateVectors[1][stateFinished] = 0.0f;
+        for (std::size_t c = 1; c <= D; ++c) {
+            stateVectors[1][c] = distribution[order[0]][c - 1];
+        }
+
+        NAEfloat E = 2.0f; // Starts at 2
+
+        // Handle the rest of the turns
+        for (std::size_t turn = 1; turn < N; ++turn) {
+            stateVectors[turn + 1][0] = 0.0f;
+
+            NAEfloat totalNotFinished = 0.0f;
+            for (std::size_t c = 1; c <= D; ++c) {
+                stateVectors[turn + 1][c] = stateVectors[turn][c] * distribution[order[turn]][c - 1];
+                totalNotFinished += stateVectors[turn + 1][c];
+            }
+
+            if (turn < N - 1)
+                E += totalNotFinished;
+            stateVectors[turn + 1][stateFinished] = 1.0f - totalNotFinished;
+        }
+
+        return E;
     }
 
     /// OPT ///
@@ -312,6 +374,7 @@ public:
         os << "\nE[cost(" << name << ")]: " << strategy.cost << '\n';
 
         #ifdef PRINT_MARKOV
+        printOrderDists(os, strategy.order) << '\n';
         printStateChain(os, strategy.order);
         #endif
 
@@ -595,6 +658,14 @@ public:
             }
         }
     }
+
+    NAEfloat getGreedyCost() const {
+        return greedy.cost;
+    }
+    
+    NAEfloat getOPTCost() const {
+        return OPT.cost;
+    }
 private:
     bool highVariance;
 
@@ -610,13 +681,19 @@ private:
 
 int main() {
     NAE nae(false);
+    // std::cout.precision(4);
 
-    for (std::size_t i = 0; i < 10; ++i) {
+    for (std::size_t i = 0; i < 10000; ++i) {
+        // nae.printDistribution(std::cout) << "\n\n";
+
         nae.calculateOPT();
-        nae.printOPT(std::cout) << '\n';
-
         nae.generateGreedy();
-        nae.printGreedy(std::cout) << '\n';
+
+        if (std::abs(nae.getGreedyCost() - nae.getOPTCost()) > 0.001f) {
+            nae.printGreedy(std::cout) << '\n';
+            nae.printOPT(std::cout) << '\n';
+            while (1);
+        }
 
         nae.reset();
 
