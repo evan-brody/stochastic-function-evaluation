@@ -1,3 +1,4 @@
+# Counterexample to optimality for the greedy adaptive algorithm for the conservative case of SCCP
 from mpmath import mp
 import numpy as np
 
