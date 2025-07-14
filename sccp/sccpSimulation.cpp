@@ -251,6 +251,25 @@ public:
         return os;
     }
 
+    SCCPFloat expectedCostNAP(const std::uint64_t (&order)[N]) const {
+        
+    }
+
+    SCCPFloat expectedCostDEN(const std::uint64_t (&order)[N]) const {
+        SCCPFloat prMissingColor[D];
+        for (std::size_t c = 0; c < D; ++c) {
+            prMissingColor[c] = 1.0f;
+        }
+
+        SCCPFloat E = 0.0f;
+        for (std::size_t turn = 0; turn < N; ++turn) {
+            SCCPFloat prEndedThisTurn = 0.0f;
+            for (std::size_t c = 0; c < D; ++c) {
+                
+            }
+        }
+    }
+
     // Calculates the expected cost of a nonadaptive strategy
     // @param   order   The strategy to evaluate
     // @return          The strategy's expected cost
