@@ -67,16 +67,98 @@ class SCCP:
 
         print([ int(die) for die in self.OPT ])
         print(self.EOPT)
-    
-    def ecost_color(self, color):
-        sc = copy.deepcopy(self.distribution)
         
-    
+    def ecost_color_get_one(self, color, queue, selected):
+        E = SCCP_float(1)
+
+        product = SCCP_float(1)
+        for test in queue[:self.n - 1]:
+            if selected[test]: continue
+            product *= self.distribution[test, color]
+            E += product
+        
+        return E
+
+    def ecost_color_get_two(self, color, queue, selected):
+        # Indexing: turn, count
+        pr_have_k = np.zeros(shape=(self.n + 1, 2), dtype=SCCP_float)
+        pr_have_k[0, 0] = 1
+
+        E = SCCP_float(0)
+        num_tested = 0
+        for test in queue:
+            if selected[test]: continue
+
+            E += pr_have_k[num_tested, 0] + pr_have_k[num_tested, 1]
+
+            pr_have_k[num_tested + 1, 0] = pr_have_k[num_tested, 0] * (1 - self.distribution[test, color])
+            pr_have_k[num_tested + 1, 1] = pr_have_k[num_tested, 0] * self.distribution[test, color] \
+                + pr_have_k[num_tested, 1] * (1 - self.distribution[test, color])
+
+            num_tested += 1
+        
+        return E
+
     def generate_greedy(self):
         self.greedy = np.empty(self.n, int)
+        selected = np.array([False] * self.n)
 
+        # Indexing: turn, count, color
+        pr_have_k = np.zeros(shape=(self.n + 1, 3, self.n), dtype=SCCP_float)
+        pr_have_k[0, 0, :] = 1
+
+        queues = np.empty(shape=(self.n, self.n), dtype=int)
+        for c in range(self.n):
+            queues[c] = self.distribution[:, c].argsort()[::-1]
+
+        for turn in range(self.n):
+            # Select a color to focus on
+            color_choice = None
+            # Lower score is better
+            color_choice_score = SCCP_float(float('inf'))
+
+            for c in range(self.n):
+                this_color_score = SCCP_float(0)
+                this_color_score += self.ecost_color_get_one(c, queues[c], selected) * pr_have_k[turn, 1, c]
+                this_color_score += self.ecost_color_get_two(c, queues[c], selected) * pr_have_k[turn, 0, c]
+
+                if this_color_score < color_choice_score:
+                    color_choice_score = this_color_score
+                    color_choice = c
+            
+            choice = None
+            i = 0
+            while i < self.n:
+                if not selected[queues[color_choice, i]]:
+                    choice = queues[color_choice, i]
+                    break
+                i += 1
+
+            if i == self.n:
+                raise Exception("Error in greedy generation.")
+
+            # Update probabilities
+            for c in range(self.n):
+                pr_have_k[turn + 1, 0, c] = pr_have_k[turn, 0, c] * (1 - self.distribution[choice, c])
+            
+            for c in range(self.n):
+                pr_have_k[turn + 1, 1, c] = pr_have_k[turn, 0, c] * self.distribution[choice, c] \
+                    + pr_have_k[turn, 1, c] * (1 - self.distribution[choice, c])
+            
+            for c in range(self.n):
+                pr_have_k[turn + 1, 2, c] = pr_have_k[turn, 1, c] * self.distribution[choice, c] \
+                    + pr_have_k[turn, 2, c]
+
+            # Insert choice and update selected
+            self.greedy[turn] = choice
+            selected[choice] = True
+        
+        self.greedy_cost = self.ecost(self.greedy)
 
 if __name__ == "__main__":
     s = SCCP(7)
-    s.find_OPT()
     s.print_distribution()
+    s.generate_greedy()
+    print(s.greedy)
+    print(s.greedy_cost)
+    s.find_OPT()
