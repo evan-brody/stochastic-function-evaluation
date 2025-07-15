@@ -5,13 +5,24 @@
 import numpy as np
 import itertools as it
 import copy
+from mpmath import mp
 
-SCCP_float = np.float64
+# Configure mp
+mp.dps = 5     # Decimal places used by mp.mpf
+mp.pretty = True # Turn pretty-printing on
+
+SCCP_float = float
 
 class SCCP:
     def __init__(self, n):
         self.n = n
         self.init_distribution()
+
+        # self.n = 4
+        # self.distribution = np.array([[0.8, 0.2, 0.0, 0.0],
+        #                                 [0.8, 0.2, 0.0, 0.0],
+        #                                 [0.2, 0.0, 0.8, 0.0],
+        #                                 [0.1, 0.0, 0.8, 0.1]])
     
     def init_distribution(self):
         self.distribution = np.random.rand(self.n, self.n)
@@ -120,8 +131,16 @@ class SCCP:
 
             for c in range(self.n):
                 this_color_score = SCCP_float(0)
-                this_color_score += self.ecost_color_get_one(c, queues[c], selected) * pr_have_k[turn, 1, c]
-                this_color_score += self.ecost_color_get_two(c, queues[c], selected) * pr_have_k[turn, 0, c]
+                
+                pr_sum = pr_have_k[turn, 1, c] + pr_have_k[turn, 0, c]
+                one_portion = pr_have_k[turn, 1, c] / pr_sum
+                zero_portion = pr_have_k[turn, 0, c] / pr_sum
+                this_color_score += self.ecost_color_get_one(c, queues[c], selected) * one_portion
+                this_color_score += self.ecost_color_get_two(c, queues[c], selected) * zero_portion
+
+                if round(one_portion + zero_portion, 7) != 1:
+                    print(one_portion + zero_portion)
+                    raise Exception("abd")
 
                 if this_color_score < color_choice_score:
                     color_choice_score = this_color_score
@@ -157,6 +176,70 @@ class SCCP:
             selected[choice] = True
         
         self.greedy_cost = self.ecost(self.greedy)
+        print(np.matrix.round(pr_have_k, 3))
+    
+    def generate_greedy_alt(self):
+        self.greedy_alt = np.empty(self.n, int)
+        self.greedy_alt_color_pick = np.empty(self.n, int)
+        selected = np.array([False] * self.n)
+
+        # Indexing: turn, count, color
+        pr_have_k = np.zeros(shape=(self.n + 1, 3, self.n), dtype=SCCP_float)
+        pr_have_k[0, 0, :] = 1
+
+        queues = np.empty(shape=(self.n, self.n), dtype=int)
+        for c in range(self.n):
+            queues[c] = self.distribution[:, c].argsort()[::-1]
+
+        for turn in range(self.n):
+            # Select a color to focus on
+            color_choice = 0
+            # Lower score is better
+            color_choice_score = SCCP_float(float('inf'))
+
+            for c in range(self.n):
+                this_color_score = SCCP_float(0)
+
+                pr_sum = pr_have_k[turn, 1, c] + pr_have_k[turn, 0, c]
+                one_portion = pr_have_k[turn, 1, c] / pr_sum
+                zero_portion = pr_have_k[turn, 0, c] / pr_sum
+                this_color_score += self.ecost_color_get_one(c, queues[c], selected) * pr_have_k[turn, 1, c]
+                this_color_score += self.ecost_color_get_two(c, queues[c], selected) * pr_have_k[turn, 0, c]
+
+                if this_color_score < color_choice_score:
+                    color_choice_score = this_color_score
+                    color_choice = c
+            
+            self.greedy_alt_color_pick[turn] = color_choice
+
+            choice = None
+            i = 0
+            while i < self.n:
+                if not selected[queues[color_choice, i]]:
+                    choice = queues[color_choice, i]
+                    break
+                i += 1
+
+            if i == self.n:
+                raise Exception("Error in greedy generation.")
+
+            # Update probabilities
+            for c in range(self.n):
+                pr_have_k[turn + 1, 0, c] = pr_have_k[turn, 0, c] * (1 - self.distribution[choice, c])
+            
+            for c in range(self.n):
+                pr_have_k[turn + 1, 1, c] = pr_have_k[turn, 0, c] * self.distribution[choice, c] \
+                    + pr_have_k[turn, 1, c] * (1 - self.distribution[choice, c])
+            
+            for c in range(self.n):
+                pr_have_k[turn + 1, 2, c] = pr_have_k[turn, 1, c] * self.distribution[choice, c] \
+                    + pr_have_k[turn, 2, c]
+
+            # Insert choice and update selected
+            self.greedy_alt[turn] = choice
+            selected[choice] = True
+        
+        self.greedy_alt_cost = self.ecost(self.greedy_alt)
 
 if __name__ == "__main__":
     s = SCCP(7)
@@ -164,8 +247,12 @@ if __name__ == "__main__":
     s.generate_greedy()
     print("Greedy ordering:")
     print(s.greedy)
+    print(s.greedy_cost)
     print("Color choices:")
     print(s.greedy_color_pick)
-    print(s.greedy_cost)
-    s.find_OPT()
-    print("approx. factor: ", s.greedy_cost / s.EOPT)
+    s.generate_greedy_alt()
+    print("Alt greedy:")
+    print(s.greedy_alt)
+    print(s.greedy_alt_cost)
+    print("Alt greedy color choice:")
+    print(s.greedy_alt_color_pick)
