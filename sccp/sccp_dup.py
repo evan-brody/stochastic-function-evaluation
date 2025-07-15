@@ -100,6 +100,7 @@ class SCCP:
         return E
 
     def generate_greedy(self):
+        self.greedy_color_pick = np.empty(self.n, int)
         self.greedy = np.empty(self.n, int)
         selected = np.array([False] * self.n)
 
@@ -126,6 +127,8 @@ class SCCP:
                     color_choice_score = this_color_score
                     color_choice = c
             
+            self.greedy_color_pick[turn] = color_choice
+
             choice = None
             i = 0
             while i < self.n:
@@ -159,6 +162,10 @@ if __name__ == "__main__":
     s = SCCP(7)
     s.print_distribution()
     s.generate_greedy()
+    print("Greedy ordering:")
     print(s.greedy)
+    print("Color choices:")
+    print(s.greedy_color_pick)
     print(s.greedy_cost)
     s.find_OPT()
+    print("approx. factor: ", s.greedy_cost / s.EOPT)
