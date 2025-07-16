@@ -148,12 +148,13 @@ class SCCP:
 
                         pr_unique_outcomes[subset][new_unique_outcome] += pr_new_unique_outcome
         
+        # Bit representation of [n]
         ALL_TESTS = NUM_TEST_SETS - 1
         self.OPT = optimal_permutations[ALL_TESTS]
         self.EOPT = optimal_costs[ALL_TESTS]
 
-        print(self.OPT)
-        print(self.EOPT)
+        print("OPT:", self.OPT)
+        print("E[OPT]:", self.EOPT)
 
     # Brute-force search for the optimal permutation
     # DEPRECATED: USE CALCULATE_OPT() TO AVOID EXPONENTIAL COMPLEXITY
@@ -229,10 +230,6 @@ class SCCP:
                 this_color_score += self.ecost_color_get_one(c, queues[c], selected) * one_portion
                 this_color_score += self.ecost_color_get_two(c, queues[c], selected) * zero_portion
 
-                if round(one_portion + zero_portion, 7) != 1:
-                    print(one_portion + zero_portion)
-                    raise Exception("abd")
-
                 if this_color_score < color_choice_score:
                     color_choice_score = this_color_score
                     color_choice = c
@@ -267,7 +264,7 @@ class SCCP:
             selected[choice] = True
         
         self.greedy_cost = self.ecost(self.greedy)
-        print(np.matrix.round(pr_have_k, 3))
+        # print(np.matrix.round(pr_have_k, 3))
     
     def generate_greedy_alt(self):
         self.greedy_alt = np.empty(self.n, int)
@@ -333,18 +330,22 @@ class SCCP:
         self.greedy_alt_cost = self.ecost(self.greedy_alt)
 
 if __name__ == "__main__":
-    s = SCCP(7)
-    # s.print_distribution()
-    s.calculate_OPT()
-    print("::::::::::::::::::::::::::::::")
-    s.find_OPT()
-    # s.print_distribution()
-    # s.generate_greedy()
-    # print("Greedy ordering:")
-    # print(s.greedy)
-    # print(s.greedy_cost)
-    # print("Color choices:")
-    # print(s.greedy_color_pick)
+    for _ in range(100):
+        s = SCCP(12)
+        # s.print_distribution()
+        s.calculate_OPT()
+        print("-------------------------------------------")
+        # s.print_distribution()
+        s.generate_greedy()
+        print("Greedy ordering:")
+        print(s.greedy)
+        print(s.greedy_cost)
+        print("Color choices:")
+        print(s.greedy_color_pick)
+
+        print("Approximation ratio:")
+        print(s.greedy_cost / s.EOPT)
+        print("::::::::::::::::::::::::::::::::::::::::::::")
     # s.generate_greedy_alt()
     # print("Alt greedy:")
     # print(s.greedy_alt)
