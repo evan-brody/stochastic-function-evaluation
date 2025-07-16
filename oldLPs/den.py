@@ -3,7 +3,7 @@ import numpy as np
 import itertools as it
 
 EPS = 10 ** -16
-N = 4
+N = 3
 
 def greedy_worse_than_something(x):
     greedy = x[0] * max(x[5], x[3]) + x[1] * max(x[2], x[4])
@@ -51,6 +51,13 @@ def nperm(x):
         running_total += product
     
     return running_total
+
+# matrix = np.array([0.151, 0.263, 0.586,
+#                    0.546, 0.346, 0.108,
+#                    0.551, 0.006, 0.444])
+# print(nperm(matrix))
+# print("::::::")
+# while True: pass
 
 def covered_four(x):
     return 1 - nperm(x)
