@@ -3,7 +3,7 @@ import numpy as np
 import itertools as it
 
 EPS = 10 ** -16
-N = 5
+N = 4
 
 def greedy_worse_than_something(x):
     greedy = x[0] * max(x[5], x[3]) + x[1] * max(x[2], x[4])
@@ -97,23 +97,17 @@ constraints = [
 ]
 
 # Initial guess
-# x0 = np.array([0.25] * 16)
-# x0 = np.random.rand(16)
-# for row in range(4):
-#     total = sum([ x0[N * row + i] for i in range(N) ])
-#     x0[N*row : N*row + N] /= total
-
-x0 = np.array([0.25, 0.25, 0.25, 0.25, 0,
-               1.0, 0.0, 0.0, 0.0, 0,
-               0.0, 1.0, 0.0, 0.0, 0,
-               0.0, 0.0, 1.0, 0.0, 0,
-               0.0, 0.0, 0.0, 1.0, 0])
+x0 = np.array([0.25] * 16)
+x0 = np.random.rand(16)
+for row in range(4):
+    total = sum([ x0[N * row + i] for i in range(N) ])
+    x0[N*row : N*row + N] /= total
 
 # Bounds (if needed)
 bounds = [(0, None)] * 16
 
 # Dummy objective function (we just want feasibility)
-# result = minimize(lambda x: four_two_diff(x), x0, method='SLSQP', bounds=bounds, constraints=constraints)
+result = minimize(lambda x: four_two_diff(x), x0, method='SLSQP', bounds=bounds, constraints=constraints)
 
 def three_perm(x):
     one = x[0] * x[4] * x[8]
@@ -130,18 +124,16 @@ def three_perm(x):
 def round_print(x):
     print(np.matrix.round(x, 3))
 
-print(nperm(x0))
+if result.success:
+    x = result.x
+    print("Solution found:")
+    round_print(x[0:4])
+    round_print(x[4:8])
+    round_print(x[8:12])
+    round_print(x[12:16])
 
-# if result.success:
-#     x = result.x
-#     print("Solution found:")
-#     round_print(x[0:4])
-#     round_print(x[4:8])
-#     round_print(x[8:12])
-#     round_print(x[12:16])
-
-#     print(four_two_diff(x))
-#     print(1 - nperm(x))
-#     print(max_dp(x))
-# else:
-#     print("No feasible solution found.")
+    print(four_two_diff(x))
+    print(1 - nperm(x))
+    print(max_dp(x))
+else:
+    print("No feasible solution found.")
