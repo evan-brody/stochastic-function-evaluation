@@ -155,21 +155,6 @@ class SCCP:
 
         print("OPT:", self.OPT)
         print("E[OPT]:", self.EOPT)
-
-    # Brute-force search for the optimal permutation
-    # DEPRECATED: USE CALCULATE_OPT() TO AVOID EXPONENTIAL COMPLEXITY
-    # def find_OPT(self):
-    #     self.OPT = None
-    #     self.EOPT = SCCP_float(self.n)
-    #     for permutation in it.permutations(np.array([ i for i in range(self.n) ])):
-    #         this_cost = self.ecost(permutation)
-
-    #         if this_cost <= self.EOPT:
-    #             self.EOPT = this_cost
-    #             self.OPT = permutation
-
-    #     print([ int(die) for die in self.OPT ])
-    #     print(self.EOPT)
         
     def ecost_color_get_one(self, color, queue, selected):
         E = SCCP_float(1)
