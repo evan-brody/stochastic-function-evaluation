@@ -145,7 +145,7 @@ class SCCP:
         self.OPT = optimal_permutations[ALL_TESTS]
         self.EOPT = optimal_costs[ALL_TESTS]
 
-        print("OPT:", self.OPT)
+        print("OPT:", [ int(j) for j in self.OPT ])
         print("E[OPT]:", self.EOPT)
         
     def ecost_color_get_one(self, color, queue, selected):
@@ -242,19 +242,90 @@ class SCCP:
         
         self.greedy_cost = self.ecost(self.greedy)
 
+    def dprod(self, i, j):
+        irow = self.distribution[i]
+        jrow = self.distribution[j]
+
+        res = SCCP_float(0)
+        for k in range(self.n):
+            res += irow[k] * jrow[k]
+        
+        return res
+
+    def generate_backwards_greedy(self):
+        self.bgreedy = np.empty(self.n, dtype=int)
+        selected = np.array([False] * self.n)
+
+        for turn in range(self.n - 1, -1, -1):
+            unused_tests = list(filter(lambda j: not selected[j], range(self.n)))
+
+            best_candidate = None
+            best_candidate_score = SCCP_float(self.n)
+            for candidate in unused_tests:
+                this_candidate_score = SCCP_float(0)
+                for other_test in unused_tests:
+                    if other_test == candidate: continue
+                    this_candidate_score += self.dprod(candidate, other_test)
+                
+                if this_candidate_score < best_candidate_score:
+                    best_candidate_score = this_candidate_score
+                    best_candidate = candidate
+                    # print(best_candidate)
+            
+            self.bgreedy[turn] = best_candidate
+            selected[best_candidate] = True
+        
+        self.bgreedy_cost = self.ecost(self.bgreedy)
+
+    def generate_new_greedy(self):
+        self.new_greedy = np.empty(self.n, dtype=int)
+        selected = np.array([False] * self.n)
+
+        for turn in range(self.n):
+            unused_tests = list(filter(lambda j: not selected[j], range(self.n)))
+
+            best_candidate = None
+            best_candidate_score = SCCP_float(0)
+            for candidate in unused_tests:
+
+                this_candidate_score = SCCP_float(0)
+                for other_test in unused_tests:
+                    if other_test == candidate: continue
+                    this_candidate_score += self.dprod(candidate, other_test)
+                
+                if this_candidate_score >= best_candidate_score:
+                    best_candidate_score = this_candidate_score
+                    best_candidate = candidate
+            
+            self.new_greedy[turn] = best_candidate
+            selected[best_candidate] = True
+        
+        self.new_greedy_cost = self.ecost(self.new_greedy)
+
+
 if __name__ == "__main__":
     for _ in range(100):
         s = SCCP(12)
         # s.print_distribution()
         s.calculate_OPT()
         print("-------------------------------------------")
-        s.generate_greedy()
-        print("Greedy ordering:")
-        print(s.greedy)
-        print(s.greedy_cost)
-        print("Color choices:")
-        print(s.greedy_color_pick)
+        # s.generate_greedy()
+        # print("Greedy ordering:")
+        # print(s.greedy)
+        # print(s.greedy_cost)
+        # print("Color choices:")
+        # print(s.greedy_color_pick)
 
-        print("Approximation ratio:")
-        print(s.greedy_cost / s.EOPT)
+        s.generate_backwards_greedy()
+        print("bgreedy:", [ int(j) for j in s.bgreedy ])
+        print("E[bgreedy]:", s.bgreedy_cost)
+        # print("-------------------------------------------")
+
+        print("Approx. factor:", s.bgreedy_cost / s.EOPT)
+
+        # s.generate_new_greedy()
+        # print("new greedy:")
+        # print(s.new_greedy)
+        # print("E[new greedy]:")
+        # print(s.new_greedy_cost)
         print("::::::::::::::::::::::::::::::::::::::::::::")
