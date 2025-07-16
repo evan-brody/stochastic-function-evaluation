@@ -7,11 +7,10 @@ import itertools as it
 import copy
 from mpmath import mp
 import functools as ft
-import math
 
 # Configure mp
-mp.dps = 5     # Decimal places used by mp.mpf
-mp.pretty = True # Turn pretty-printing on
+mp.dps = 5          # Decimal places used by mp.mpf
+mp.pretty = True    # Turn pretty-printing on
 
 SCCP_float = np.float64
 
@@ -19,12 +18,6 @@ class SCCP:
     def __init__(self, n):
         self.n = n
         self.init_distribution()
-
-        # self.n = 4
-        # self.distribution = np.array([[0.8, 0.2, 0.0, 0.0],
-        #                                 [0.8, 0.2, 0.0, 0.0],
-        #                                 [0.2, 0.0, 0.8, 0.0],
-        #                                 [0.1, 0.0, 0.8, 0.1]])
     
     def init_distribution(self):
         self.distribution = np.random.rand(self.n, self.n)
@@ -100,7 +93,7 @@ class SCCP:
                 # Find minimum prefix
                 best_end_test = None
                 best_end_test_bit = None
-                cost_with_best_end_test = self.n + 1
+                cost_with_best_end_test = SCCP_float(self.n + 1)
 
                 # Pulling test j out of subset S creates a prefix
                 for j, singleton in enumerate(singletons):
@@ -109,13 +102,11 @@ class SCCP:
 
                     # Bitwise XOR removes j from S
                     no_j = subset ^ singleton
-                    opt_cost_no_j = optimal_costs[no_j]
 
+                    # E[cost(S)] = E[cost(S\{j})] + Pr[test j]
                     # Pr[test j] = Pr[all colors in prefix are unique]
-                    # We sum over disjoint outcomes to calculate this value
-                    pr_need_test_j = sum(pr_unique_outcomes[no_j])
-                    
-                    cost_with_end_j = opt_cost_no_j + pr_need_test_j
+                    # We sum over disjoint outcomes to calculate this value                    
+                    cost_with_end_j = optimal_costs[no_j] + sum(pr_unique_outcomes[no_j])
                     if cost_with_end_j < cost_with_best_end_test:
                         cost_with_best_end_test = cost_with_end_j
                         best_end_test = j
@@ -150,6 +141,7 @@ class SCCP:
         
         # Bit representation of [n]
         ALL_TESTS = NUM_TEST_SETS - 1
+
         self.OPT = optimal_permutations[ALL_TESTS]
         self.EOPT = optimal_costs[ALL_TESTS]
 
@@ -162,7 +154,7 @@ class SCCP:
         product = SCCP_float(1)
         for test in queue[:self.n - 1]:
             if selected[test]: continue
-            product *= self.distribution[test, color]
+            product *= self.distribution[test][color]
             E += product
         
         return E
@@ -177,11 +169,11 @@ class SCCP:
         for test in queue:
             if selected[test]: continue
 
-            E += pr_have_k[num_tested, 0] + pr_have_k[num_tested, 1]
+            E += pr_have_k[num_tested][0] + pr_have_k[num_tested][1]
 
-            pr_have_k[num_tested + 1, 0] = pr_have_k[num_tested, 0] * (1 - self.distribution[test, color])
-            pr_have_k[num_tested + 1, 1] = pr_have_k[num_tested, 0] * self.distribution[test, color] \
-                + pr_have_k[num_tested, 1] * (1 - self.distribution[test, color])
+            pr_have_k[num_tested + 1][0] = pr_have_k[num_tested][0] * (1 - self.distribution[test][color])
+            pr_have_k[num_tested + 1][1] = pr_have_k[num_tested][0] * self.distribution[test][color] \
+                + pr_have_k[num_tested][1] * (1 - self.distribution[test][color])
 
             num_tested += 1
         
@@ -209,9 +201,9 @@ class SCCP:
             for c in range(self.n):
                 this_color_score = SCCP_float(0)
                 
-                pr_sum = pr_have_k[turn, 1, c] + pr_have_k[turn, 0, c]
-                one_portion = pr_have_k[turn, 1, c] / pr_sum
-                zero_portion = pr_have_k[turn, 0, c] / pr_sum
+                pr_sum = pr_have_k[turn][1][c] + pr_have_k[turn][0][c]
+                one_portion = pr_have_k[turn][1][c] / pr_sum
+                zero_portion = pr_have_k[turn][0][c] / pr_sum
                 this_color_score += self.ecost_color_get_one(c, queues[c], selected) * one_portion
                 this_color_score += self.ecost_color_get_two(c, queues[c], selected) * zero_portion
 
@@ -224,7 +216,7 @@ class SCCP:
             choice = None
             i = 0
             while i < self.n:
-                if not selected[queues[color_choice, i]]:
+                if not selected[queues[color_choice][i]]:
                     choice = queues[color_choice, i]
                     break
                 i += 1
@@ -234,85 +226,21 @@ class SCCP:
 
             # Update probabilities
             for c in range(self.n):
-                pr_have_k[turn + 1, 0, c] = pr_have_k[turn, 0, c] * (1 - self.distribution[choice, c])
+                pr_have_k[turn + 1][0][c] = pr_have_k[turn][0][c] * (1 - self.distribution[choice][c])
             
             for c in range(self.n):
-                pr_have_k[turn + 1, 1, c] = pr_have_k[turn, 0, c] * self.distribution[choice, c] \
-                    + pr_have_k[turn, 1, c] * (1 - self.distribution[choice, c])
+                pr_have_k[turn + 1][1][c] = pr_have_k[turn][0][c] * self.distribution[choice][c] \
+                    + pr_have_k[turn][1][c] * (1 - self.distribution[choice][c])
             
             for c in range(self.n):
-                pr_have_k[turn + 1, 2, c] = pr_have_k[turn, 1, c] * self.distribution[choice, c] \
-                    + pr_have_k[turn, 2, c]
+                pr_have_k[turn + 1][2][c] = pr_have_k[turn][1][c] * self.distribution[choice][c] \
+                    + pr_have_k[turn][2][c]
 
             # Insert choice and update selected
             self.greedy[turn] = choice
             selected[choice] = True
         
         self.greedy_cost = self.ecost(self.greedy)
-        # print(np.matrix.round(pr_have_k, 3))
-    
-    def generate_greedy_alt(self):
-        self.greedy_alt = np.empty(self.n, int)
-        self.greedy_alt_color_pick = np.empty(self.n, int)
-        selected = np.array([False] * self.n)
-
-        # Indexing: turn, count, color
-        pr_have_k = np.zeros(shape=(self.n + 1, 3, self.n), dtype=SCCP_float)
-        pr_have_k[0, 0, :] = 1
-
-        queues = np.empty(shape=(self.n, self.n), dtype=int)
-        for c in range(self.n):
-            queues[c] = self.distribution[:, c].argsort()[::-1]
-
-        for turn in range(self.n):
-            # Select a color to focus on
-            color_choice = 0
-            # Lower score is better
-            color_choice_score = SCCP_float(float('inf'))
-
-            for c in range(self.n):
-                this_color_score = SCCP_float(0)
-
-                pr_sum = pr_have_k[turn, 1, c] + pr_have_k[turn, 0, c]
-                one_portion = pr_have_k[turn, 1, c] / pr_sum
-                zero_portion = pr_have_k[turn, 0, c] / pr_sum
-                this_color_score += self.ecost_color_get_one(c, queues[c], selected) * pr_have_k[turn, 1, c]
-                this_color_score += self.ecost_color_get_two(c, queues[c], selected) * pr_have_k[turn, 0, c]
-
-                if this_color_score < color_choice_score:
-                    color_choice_score = this_color_score
-                    color_choice = c
-            
-            self.greedy_alt_color_pick[turn] = color_choice
-
-            choice = None
-            i = 0
-            while i < self.n:
-                if not selected[queues[color_choice, i]]:
-                    choice = queues[color_choice, i]
-                    break
-                i += 1
-
-            if i == self.n:
-                raise Exception("Error in greedy generation.")
-
-            # Update probabilities
-            for c in range(self.n):
-                pr_have_k[turn + 1, 0, c] = pr_have_k[turn, 0, c] * (1 - self.distribution[choice, c])
-            
-            for c in range(self.n):
-                pr_have_k[turn + 1, 1, c] = pr_have_k[turn, 0, c] * self.distribution[choice, c] \
-                    + pr_have_k[turn, 1, c] * (1 - self.distribution[choice, c])
-            
-            for c in range(self.n):
-                pr_have_k[turn + 1, 2, c] = pr_have_k[turn, 1, c] * self.distribution[choice, c] \
-                    + pr_have_k[turn, 2, c]
-
-            # Insert choice and update selected
-            self.greedy_alt[turn] = choice
-            selected[choice] = True
-        
-        self.greedy_alt_cost = self.ecost(self.greedy_alt)
 
 if __name__ == "__main__":
     for _ in range(100):
@@ -320,7 +248,6 @@ if __name__ == "__main__":
         # s.print_distribution()
         s.calculate_OPT()
         print("-------------------------------------------")
-        # s.print_distribution()
         s.generate_greedy()
         print("Greedy ordering:")
         print(s.greedy)
@@ -331,9 +258,3 @@ if __name__ == "__main__":
         print("Approximation ratio:")
         print(s.greedy_cost / s.EOPT)
         print("::::::::::::::::::::::::::::::::::::::::::::")
-    # s.generate_greedy_alt()
-    # print("Alt greedy:")
-    # print(s.greedy_alt)
-    # print(s.greedy_alt_cost)
-    # print("Alt greedy color choice:")
-    # print(s.greedy_alt_color_pick)
