@@ -177,7 +177,7 @@ class NAE:
     def shuffle_local_search_all_swaps(self):
         self.shuffle_strat()
 
-        # print(f"Minimum cost: {self.cost}")
+        print(f"Minimum cost: {self.cost}")
 
         return self.local_search_all_swaps()
     
@@ -214,22 +214,22 @@ def check_for_local_minima(n):
         print("---")
 
 if __name__ == "__main__":
-    # check_for_local_minima(20)
-    # exit(0)
+    check_for_local_minima(10)
+    exit(0)
 
-    nrange = range(10, 31)
-    tick_range = nrange[::10]
-    xpoints = list(nrange)
-    ypoints = []
-    for n in nrange:
-        res = avg_local_steps_all_swaps(n)
-        ypoints.append(res)
-        print(f"Completed n = {n}, result: {res}")
+    # nrange = range(10, 31)
+    # tick_range = nrange[::10]
+    # xpoints = list(nrange)
+    # ypoints = []
+    # for n in nrange:
+    #     res = avg_local_steps_all_swaps(n)
+    #     ypoints.append(res)
+    #     print(f"Completed n = {n}, result: {res}")
 
-    plt.plot(xpoints, ypoints, 'r-o')
-    plt.title(f"N = {ITER_COUNT}; precision = {mp.dps}")
-    plt.ylabel("Local Search Iterations")
-    plt.xlabel("n")
-    plt.xticks(tick_range) # Labels on the x-axis should be integers
+    # plt.plot(xpoints, ypoints, 'r-o')
+    # plt.title(f"N = {ITER_COUNT}; precision = {mp.dps}")
+    # plt.ylabel("Local Search Iterations")
+    # plt.xlabel("n")
+    # plt.xticks(tick_range) # Labels on the x-axis should be integers
 
-    plt.show()
+    # plt.show()

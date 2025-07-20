@@ -144,7 +144,8 @@ class SCCP:
 
         self.OPT = optimal_permutations[ALL_TESTS]
         self.EOPT = optimal_costs[ALL_TESTS]
-
+    
+    def print_OPT(self):
         print("OPT:", [ int(j) for j in self.OPT ])
         print("E[OPT]:", self.EOPT)
         
@@ -276,56 +277,134 @@ class SCCP:
             selected[best_candidate] = True
         
         self.bgreedy_cost = self.ecost(self.bgreedy)
+    
+    def test_score(self, j, used_tests):
+        score = SCCP_float(0)
+        
+        for color_set in it.combinations(range(self.n), len(used_tests)):
+            pr_color_set = SCCP_float(0)
 
-    def generate_new_greedy(self):
-        self.new_greedy = np.empty(self.n, dtype=int)
+            for color_assignment in it.permutations(color_set):
+                pr_assignment = SCCP_float(1)
+
+                for k, color in enumerate(color_assignment):
+                    pr_assignment *= self.distribution[used_tests[k]][color]
+                
+                pr_color_set += pr_assignment
+            
+            pr_j_helpful = SCCP_float(0)
+            for helpful_color in color_set:
+                pr_j_helpful += self.distribution[j][helpful_color]
+            
+            score += pr_color_set * pr_j_helpful
+        
+        return score
+
+    def generate_exact_greedy(self):
+        self.exact_greedy = np.empty(self.n, dtype=int)
+        
+        best_first_test = None
+        best_first_test_ecost = SCCP_float(self.n + 1)
+        for first_test in range(self.n):
+            self.exact_greedy_first_test(first_test)
+
+            this_ecost = self.ecost(self.exact_greedy)
+            if this_ecost < best_first_test_ecost:
+                best_first_test_ecost = this_ecost
+                best_first_test = first_test
+        
+        self.exact_greedy_first_test(best_first_test)
+        self.exact_greedy_cost = self.ecost(self.exact_greedy)
+
+    def print_exact_greedy(self):
+        print("Exact Greedy:")
+        print([ int(j) for j in self.exact_greedy ])
+        print("E[Exact Greedy]:", self.exact_greedy_cost)
+        print("Approx. factor:", round(self.exact_greedy_cost / self.EOPT, 4))
+
+    def exact_greedy_first_test(self, first_test):
+        self.exact_greedy[0] = first_test
+
+        selected = np.array([ j == first_test for j in range(self.n) ])
+
+        used_tests = [ first_test ]
+
+        for k in range(1, self.n):
+            unused_tests = [ j for j in range(self.n) if not selected[j] ]
+
+            best_test = None
+            best_test_score = SCCP_float(0)
+            for candidate in unused_tests:
+                this_test_score = self.test_score(candidate, used_tests)
+                if this_test_score > best_test_score:
+                    best_test_score = this_test_score
+                    best_test = candidate
+                
+            self.exact_greedy[k] = best_test
+            selected[best_test] = True
+            used_tests.append(best_test)
+
+
+    def generate_forward_greedy(self):
+        self.fgreedy = np.empty(self.n, dtype=int)
         selected = np.array([False] * self.n)
 
-        for turn in range(self.n):
-            unused_tests = list(filter(lambda j: not selected[j], range(self.n)))
+        # Find max pair
+        max_pair = None
+        max_pair_score = SCCP_float(0)
 
-            best_candidate = None
-            best_candidate_score = SCCP_float(0)
-            for candidate in unused_tests:
-
-                this_candidate_score = SCCP_float(0)
-                for other_test in unused_tests:
-                    if other_test == candidate: continue
-                    this_candidate_score += self.dprod(candidate, other_test)
-                
-                if this_candidate_score >= best_candidate_score:
-                    best_candidate_score = this_candidate_score
-                    best_candidate = candidate
-            
-            self.new_greedy[turn] = best_candidate
-            selected[best_candidate] = True
+        for i, j in it.combinations(range(self.n), 2):
+            this_pair_score = self.dprod(i, j)
+            if this_pair_score > max_pair_score:
+                max_pair_score = this_pair_score
+                max_pair = (i, j)
         
-        self.new_greedy_cost = self.ecost(self.new_greedy)
+        self.fgreedy[0] = max_pair[0]
+        self.fgreedy[1] = max_pair[1]
 
+        selected[max_pair[0]] = selected[max_pair[1]] = True
+
+        used_tests = list(max_pair)
+
+        for k in range(2, self.n):
+            unused_tests = [ j for j in range(self.n) if not selected[j] ]
+
+            best_test = None
+            best_test_score = SCCP_float(0)
+
+            for candidate in unused_tests:
+                this_candidate_score = SCCP_float(0)
+                for previous_test in used_tests:
+                    this_candidate_score += self.dprod(candidate, previous_test)
+                
+                if this_candidate_score > best_test_score:
+                    best_test_score = this_candidate_score
+                    best_test = candidate
+            
+            self.fgreedy[k] = best_test
+            used_tests.append(best_test)
+            selected[best_test] = True
+        
+        self.fgreedy_cost = self.ecost(self.fgreedy)
+    
+    def print_forward_greedy(self):
+        print("Forward Greedy:")
+        print([ int(j) for j in self.fgreedy ])
+        print("E[Forward Greedy]:", s.fgreedy_cost)
+        print("Approx. factor:", round(s.fgreedy_cost / s.EOPT, 4))
 
 if __name__ == "__main__":
     for _ in range(100):
-        s = SCCP(12)
-        # s.print_distribution()
+        s = SCCP(8)
         s.calculate_OPT()
-        print("-------------------------------------------")
-        # s.generate_greedy()
-        # print("Greedy ordering:")
-        # print(s.greedy)
-        # print(s.greedy_cost)
-        # print("Color choices:")
-        # print(s.greedy_color_pick)
+        # s.print_OPT()
 
-        s.generate_backwards_greedy()
-        print("bgreedy:", [ int(j) for j in s.bgreedy ])
-        print("E[bgreedy]:", s.bgreedy_cost)
-        # print("-------------------------------------------")
+        print()
+        s.generate_exact_greedy()
+        # s.print_exact_greedy()
 
-        print("Approx. factor:", s.bgreedy_cost / s.EOPT)
+        if abs(s.exact_greedy_cost - s.EOPT) > 0.001:
+            s.print_OPT()
+            s.print_exact_greedy()
 
-        # s.generate_new_greedy()
-        # print("new greedy:")
-        # print(s.new_greedy)
-        # print("E[new greedy]:")
-        # print(s.new_greedy_cost)
         print("::::::::::::::::::::::::::::::::::::::::::::")
