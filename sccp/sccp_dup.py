@@ -148,6 +148,10 @@ class SCCP:
     def print_OPT(self):
         print("OPT:", [ int(j) for j in self.OPT ])
         print("E[OPT]:", self.EOPT)
+        for c in range(self.n):
+            for j in self.OPT:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
         
     def ecost_color_get_one(self, color, queue, selected):
         E = SCCP_float(1)
@@ -321,6 +325,10 @@ class SCCP:
         print([ int(j) for j in self.exact_greedy ])
         print("E[Exact Greedy]:", self.exact_greedy_cost)
         print("Approx. factor:", round(self.exact_greedy_cost / self.EOPT, 4))
+        for c in range(self.n):
+            for j in self.exact_greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
 
     def exact_greedy_first_test(self, first_test):
         self.exact_greedy[0] = first_test
