@@ -270,19 +270,105 @@ class DUV:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
 
+    def generate_simple_greedy(self):
+        self.simple_greedy = np.empty(shape=(self.n,), dtype=int)
+
+        used = np.array([False] * self.n)
+
+        unbiased = True
+        context = np.ones(shape=(self.d,), dtype=float)
+
+        k = 0
+        while k < self.n:
+            if unbiased:
+                if k == self.n - 1:
+                    for j in it.filterfalse(lambda x: used[x], range(self.n)):
+                        self.simple_greedy[-1] = j
+                    break
+
+                min_score = self.n
+                best_pair = (None, None)    
+
+                for i, j in it.product(range(self.n), repeat=2):
+                    if i == j or used[i] or used[j]: continue
+
+                    this_pair_score = 0
+                    for c in range(self.d):
+                        this_pair_score += self.distribution[i][c] * self.distribution[j][c]
+                    
+                    if this_pair_score < min_score:
+                        min_score = this_pair_score
+                        best_pair = (i, j)
+                
+                self.simple_greedy[k] = best_pair[0]
+                self.simple_greedy[k + 1] = best_pair[1]
+
+                used[best_pair[0]] = used[best_pair[1]] = True
+
+                for c in range(self.d):
+                    context[c] *= self.distribution[best_pair[0]][c] * self.distribution[best_pair[1]][c]
+
+                k += 2
+
+                for c in range(self.d - 1):
+                    unbiased = (unbiased and context[c] == context[c + 1])
+            else:
+                min_score = self.n
+                best_test = None
+
+                for j in range(self.n):
+                    if used[j]: continue
+
+                    this_test_score = 0
+                    for c in range(self.d):
+                        this_test_score += context[c] * self.distribution[j][c]
+                    
+                    if this_test_score < min_score:
+                        min_score = this_test_score
+                        best_test = j
+                
+                self.simple_greedy[k] = best_test
+                used[best_test] = True
+
+                for c in range(self.d):
+                    context[c] *= self.distribution[best_test][c]
+
+                k += 1
+
+                unbiased = True
+                for c in range(self.d - 1):
+                    unbiased = (unbiased and context[c] == context[c + 1])
+        
+        self.simple_greedy_cost = self.expected_cost(self.simple_greedy)
+
+    def print_simple_greedy(self):
+        print("SGreedy:", [ int(j) for j in self.simple_greedy ])
+        print("E[SGreedy]:", self.simple_greedy_cost)
+        for c in range(self.d):
+            for j in self.simple_greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+
+
 if __name__ == '__main__':
     i = 1
-    while True:
-        duv = DUV(3, 10)
+    max_diff = 0
+    max_diff_instance = None
+    for _ in range(1_000_000):
+        duv = DUV(3, 8)
 
         duv.generate_OPT()
-        duv.generate_middle_greedy()
-        
-        if abs(duv.EOPT - duv.middle_greedy_cost) > 0.01:
-            duv.print_OPT(); print()
-            duv.print_middle_greedy(); print()
-            sys.exit(0)
-        else:
-            print(f"-------------[{i}]-------------")
+        duv.generate_simple_greedy()
+
+        diff = duv.simple_greedy_cost - duv.EOPT
+        if diff > max_diff:
+            max_diff = diff
+            max_diff_instance = copy.deepcopy(duv)
+
+        if i % 1000 == 0:
+            print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
         
         i += 1
+    
+    max_diff_instance.print_OPT(); print()
+    max_diff_instance.print_simple_greedy(); print()
