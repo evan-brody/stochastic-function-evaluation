@@ -349,13 +349,47 @@ class DUV:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
 
+    def get_scale_vector(self):
+        scale_vector = np.ones(shape=(self.d,), dtype=float)
 
+        sv_sum = 0
+        for c in range(self.d):
+            scale_vector[c] += np.random.normal(scale=0.01)
+            sv_sum += scale_vector[c]
+
+        return scale_vector
+    
+    def normalize(self, vector):
+        sv = sum(vector)
+        vector[:] /= sv
+
+        return vector
+    
+    def init_child_distribution(self, parent_distribution):
+        for j in range(self.n):
+            new_die = copy.deepcopy(parent_distribution[j])
+            scale_vector = self.get_scale_vector()
+            for c in range(self.d):
+                new_die[c] *= scale_vector[c]
+            
+            new_die = self.normalize(new_die)
+
+            self.distribution[j] = copy.deepcopy(new_die)
+        
+        return self.distribution
+
+
+GENERATION_SIZE = 100_000
+GENERATION_COUNT = 100
+DN = (3, 5)
 if __name__ == '__main__':
     i = 1
     max_diff = 0
     max_diff_instance = None
+    first_parent = None
+
     for _ in range(1_000_000):
-        duv = DUV(3, 8)
+        duv = DUV(*DN)
 
         duv.generate_OPT()
         duv.generate_simple_greedy()
@@ -363,6 +397,7 @@ if __name__ == '__main__':
         diff = duv.simple_greedy_cost - duv.EOPT
         if diff > max_diff:
             max_diff = diff
+            first_parent = copy.deepcopy(duv)
             max_diff_instance = copy.deepcopy(duv)
 
         if i % 1000 == 0:
@@ -370,5 +405,26 @@ if __name__ == '__main__':
         
         i += 1
     
+    for _ in range(GENERATION_COUNT):
+        current_parent = copy.deepcopy(max_diff_instance)
+        for __ in range(GENERATION_SIZE):
+            duv = DUV(*DN)
+            duv.init_child_distribution(current_parent.distribution)
+
+            duv.generate_OPT()
+            duv.generate_simple_greedy()
+
+            diff = duv.simple_greedy_cost - duv.EOPT
+
+            if diff > max_diff:
+                max_diff = diff
+                max_diff_instance = copy.deepcopy(duv)
+
+            if i % 1000 == 0:
+                print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+            
+            i += 1
+
+    print(max_diff); print()
     max_diff_instance.print_OPT(); print()
     max_diff_instance.print_simple_greedy(); print()
