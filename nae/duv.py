@@ -275,69 +275,31 @@ class DUV:
 
         used = np.array([False] * self.n)
 
-        unbiased = True
         context = np.ones(shape=(self.d,), dtype=float)
 
         k = 0
         while k < self.n:
-            if unbiased:
-                if k == self.n - 1:
-                    for j in it.filterfalse(lambda x: used[x], range(self.n)):
-                        self.simple_greedy[-1] = j
-                    break
+            min_score = self.n
+            best_test = 0
 
-                min_score = self.n
-                best_pair = (None, None)    
+            for j in range(self.n):
+                if used[j]: continue
 
-                for i, j in it.product(range(self.n), repeat=2):
-                    if i == j or used[i] or used[j]: continue
-
-                    this_pair_score = 0
-                    for c in range(self.d):
-                        this_pair_score += self.distribution[i][c] * self.distribution[j][c]
-                    
-                    if this_pair_score < min_score:
-                        min_score = this_pair_score
-                        best_pair = (i, j)
-                
-                self.simple_greedy[k] = best_pair[0]
-                self.simple_greedy[k + 1] = best_pair[1]
-
-                used[best_pair[0]] = used[best_pair[1]] = True
-
+                this_test_score = 0
                 for c in range(self.d):
-                    context[c] *= self.distribution[best_pair[0]][c] * self.distribution[best_pair[1]][c]
-
-                k += 2
-
-                for c in range(self.d - 1):
-                    unbiased = (unbiased and context[c] == context[c + 1])
-            else:
-                min_score = self.n
-                best_test = None
-
-                for j in range(self.n):
-                    if used[j]: continue
-
-                    this_test_score = 0
-                    for c in range(self.d):
-                        this_test_score += context[c] * self.distribution[j][c]
-                    
-                    if this_test_score < min_score:
-                        min_score = this_test_score
-                        best_test = j
+                    this_test_score += context[c] * self.distribution[j][c]
                 
-                self.simple_greedy[k] = best_test
-                used[best_test] = True
+                if this_test_score < min_score:
+                    min_score = this_test_score
+                    best_test = j
+            
+            self.simple_greedy[k] = best_test
+            used[best_test] = True
 
-                for c in range(self.d):
-                    context[c] *= self.distribution[best_test][c]
+            for c in range(self.d):
+                context[c] *= self.distribution[best_test][c]
 
-                k += 1
-
-                unbiased = True
-                for c in range(self.d - 1):
-                    unbiased = (unbiased and context[c] == context[c + 1])
+            k += 1
         
         self.simple_greedy_cost = self.expected_cost(self.simple_greedy)
 
@@ -379,16 +341,15 @@ class DUV:
         return self.distribution
 
 
-GENERATION_SIZE = 100_000
-GENERATION_COUNT = 100
-DN = (3, 5)
+GENERATION_SIZE = 10_000
+GENERATION_COUNT = 1000
+DN = (3, 6)
 if __name__ == '__main__':
     i = 1
     max_diff = 0
     max_diff_instance = None
-    first_parent = None
 
-    for _ in range(1_000_000):
+    for _ in range(1000_000):
         duv = DUV(*DN)
 
         duv.generate_OPT()
@@ -397,7 +358,6 @@ if __name__ == '__main__':
         diff = duv.simple_greedy_cost - duv.EOPT
         if diff > max_diff:
             max_diff = diff
-            first_parent = copy.deepcopy(duv)
             max_diff_instance = copy.deepcopy(duv)
 
         if i % 1000 == 0:
