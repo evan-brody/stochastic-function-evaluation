@@ -343,13 +343,13 @@ class DUV:
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (3, 6)
+DN = (3, 8)
 if __name__ == '__main__':
     i = 1
     max_diff = 0
     max_diff_instance = None
 
-    for _ in range(1000_000):
+    for _ in range(1_000_000):
         duv = DUV(*DN)
 
         duv.generate_OPT()
@@ -380,7 +380,7 @@ if __name__ == '__main__':
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
-            if i % 1000 == 0:
+            if i % GENERATION_SIZE == 0:
                 print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
             
             i += 1
