@@ -12,21 +12,22 @@ class DUV:
     def __init__(self, d, n):
         self.d = d
         self.n = n
-        self.init_distribution()
+        self.distribution = np.empty(shape=(self.n, self.d), dtype=float)
+        # self.init_distribution()
 
     # Generates a distribution over the tests and colors
     def init_distribution(self):
         # Generates random "markers" in [0, 1]
         self.distribution = np.random.rand(self.n, self.d)
 
-        self.distribution[:, -1] = 1
-        self.distribution.sort(axis=1)
+        # self.distribution[:, -1] = 1
+        # self.distribution.sort(axis=1)
 
-        # Calculate the space between markers, which will be the
-        # probability of some outcome
-        for die in self.distribution:
-            for i in range(self.d - 1, 0, -1):
-                die[i] -= die[i - 1]
+        # # Calculate the space between markers, which will be the
+        # # probability of some outcome
+        # for die in self.distribution:
+        #     for i in range(self.d - 1, 0, -1):
+        #         die[i] -= die[i - 1]
     
     def expected_cost(self, strategy):
         cost = 1
@@ -59,7 +60,7 @@ class DUV:
                 # Find minimum prefix
                 best_end_test = None
                 best_end_test_bit = None
-                cost_with_best_end_test = self.n + 1
+                cost_with_best_end_test = float('inf')
 
                 # Pulling test j out of subset S creates a prefix
                 for j, singleton in enumerate(singletons):
@@ -275,69 +276,31 @@ class DUV:
 
         used = np.array([False] * self.n)
 
-        unbiased = True
         context = np.ones(shape=(self.d,), dtype=float)
 
         k = 0
         while k < self.n:
-            if unbiased:
-                if k == self.n - 1:
-                    for j in it.filterfalse(lambda x: used[x], range(self.n)):
-                        self.simple_greedy[-1] = j
-                    break
+            min_score = self.n
+            best_test = 0
 
-                min_score = self.n
-                best_pair = (None, None)    
+            for j in range(self.n):
+                if used[j]: continue
 
-                for i, j in it.product(range(self.n), repeat=2):
-                    if i == j or used[i] or used[j]: continue
-
-                    this_pair_score = 0
-                    for c in range(self.d):
-                        this_pair_score += self.distribution[i][c] * self.distribution[j][c]
-                    
-                    if this_pair_score < min_score:
-                        min_score = this_pair_score
-                        best_pair = (i, j)
-                
-                self.simple_greedy[k] = best_pair[0]
-                self.simple_greedy[k + 1] = best_pair[1]
-
-                used[best_pair[0]] = used[best_pair[1]] = True
-
+                this_test_score = 0
                 for c in range(self.d):
-                    context[c] *= self.distribution[best_pair[0]][c] * self.distribution[best_pair[1]][c]
-
-                k += 2
-
-                for c in range(self.d - 1):
-                    unbiased = (unbiased and context[c] == context[c + 1])
-            else:
-                min_score = self.n
-                best_test = None
-
-                for j in range(self.n):
-                    if used[j]: continue
-
-                    this_test_score = 0
-                    for c in range(self.d):
-                        this_test_score += context[c] * self.distribution[j][c]
-                    
-                    if this_test_score < min_score:
-                        min_score = this_test_score
-                        best_test = j
+                    this_test_score += context[c] * self.distribution[j][c]
                 
-                self.simple_greedy[k] = best_test
-                used[best_test] = True
+                if this_test_score < min_score:
+                    min_score = this_test_score
+                    best_test = j
+            
+            self.simple_greedy[k] = best_test
+            used[best_test] = True
 
-                for c in range(self.d):
-                    context[c] *= self.distribution[best_test][c]
+            for c in range(self.d):
+                context[c] *= self.distribution[best_test][c]
 
-                k += 1
-
-                unbiased = True
-                for c in range(self.d - 1):
-                    unbiased = (unbiased and context[c] == context[c + 1])
+            k += 1
         
         self.simple_greedy_cost = self.expected_cost(self.simple_greedy)
 
@@ -352,10 +315,8 @@ class DUV:
     def get_scale_vector(self):
         scale_vector = np.ones(shape=(self.d,), dtype=float)
 
-        sv_sum = 0
         for c in range(self.d):
             scale_vector[c] += np.random.normal(scale=0.01)
-            sv_sum += scale_vector[c]
 
         return scale_vector
     
@@ -365,6 +326,12 @@ class DUV:
 
         return vector
     
+    def clamp(self, vector):
+        for j in range(len(vector)):
+            vector[j] = min(1, vector[j])
+        
+        return vector
+    
     def init_child_distribution(self, parent_distribution):
         for j in range(self.n):
             new_die = copy.deepcopy(parent_distribution[j])
@@ -372,24 +339,25 @@ class DUV:
             for c in range(self.d):
                 new_die[c] *= scale_vector[c]
             
-            new_die = self.normalize(new_die)
+            new_die = self.clamp(new_die)
+            # new_die = self.normalize(new_die)
 
             self.distribution[j] = copy.deepcopy(new_die)
         
         return self.distribution
 
 
-GENERATION_SIZE = 100_000
-GENERATION_COUNT = 100
-DN = (3, 5)
+GENERATION_SIZE = 10_000
+GENERATION_COUNT = 1000
+DN = (3, 6)
 if __name__ == '__main__':
     i = 1
     max_diff = 0
     max_diff_instance = None
-    first_parent = None
 
     for _ in range(1_000_000):
         duv = DUV(*DN)
+        duv.init_distribution()
 
         duv.generate_OPT()
         duv.generate_simple_greedy()
@@ -397,7 +365,6 @@ if __name__ == '__main__':
         diff = duv.simple_greedy_cost - duv.EOPT
         if diff > max_diff:
             max_diff = diff
-            first_parent = copy.deepcopy(duv)
             max_diff_instance = copy.deepcopy(duv)
 
         if i % 1000 == 0:
@@ -420,7 +387,7 @@ if __name__ == '__main__':
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
-            if i % 1000 == 0:
+            if i % GENERATION_SIZE == 0:
                 print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
             
             i += 1
