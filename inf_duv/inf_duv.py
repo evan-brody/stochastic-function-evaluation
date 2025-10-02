@@ -4,6 +4,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
 class InfUVP:
     def __init__(self, p_high=None, p_low=None):
@@ -25,9 +26,8 @@ class InfUVP:
         self.p_low = 0.5 - eps_tails
     
     def generate_sequence(self, n):
-        # Need to track ratio instead of individual biases for numerical stability
-        # H / T
-        bias_ratio = 1
+        head_bias = 0.5
+        tail_bias = 0.5
 
         bias_sequence = np.empty(shape=(n,), dtype=float)
         coin_sequence = np.empty(shape=(n,), dtype=bool) # True = heads, False = tails
@@ -35,17 +35,21 @@ class InfUVP:
         # NOTE: this is only optimal because both coins are guaranteed
         #       to be on either side of 1/2
         for k in range(n):
-            bias_sequence[k] = bias_ratio
-            if bias_ratio <= 1:
+            bias_sequence[k] = head_bias
+            if tail_bias >= head_bias:
                 coin_sequence[k] = True
 
-                bias_ratio *= self.p_high
-                bias_ratio /= 1 - self.p_high
-            elif bias_ratio > 1:
+                head_bias *= self.p_high
+                tail_bias *= 1 - self.p_high
+            else:
                 coin_sequence[k] = False
 
-                bias_ratio *= self.p_low
-                bias_ratio /= 1 - self.p_low
+                head_bias *= self.p_low
+                tail_bias *= 1 - self.p_low
+            
+            normalizer = head_bias + tail_bias
+            head_bias /= normalizer
+            tail_bias /= normalizer
         
         return coin_sequence, bias_sequence
             
@@ -60,12 +64,12 @@ def plot_sequences(n, p_high=None, p_low=None):
     ax.set_xticks(xticks)
 
     # color in the biases
-    bar_height = max(bias_sequence) + 5
+    bar_height = 1
     for j, bias in zip(xticks, bias_sequence):
         color = 'gray'
-        if bias > 1:
+        if bias < 0.5: # chose heads
             color = 'red'
-        elif bias < 1:
+        elif bias > 0.5: # chose tails
             color = 'blue'
         
         ax.bar(j, bar_height, width=1, color=color, alpha=0.3, align='center')
@@ -77,4 +81,4 @@ def plot_sequences(n, p_high=None, p_low=None):
     plt.show()
 
 if __name__ == '__main__':
-    plot_sequences(30, 3/4, 1/8)
+    plot_sequences(100, 0.75, 0.125)
