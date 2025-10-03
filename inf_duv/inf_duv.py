@@ -5,16 +5,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from mpmath import mp
+
+# Configure mp
+mp.dps = 100     # Decimal places used by mp.mpf
+mp.pretty = True # Turn pretty-printing on
 
 class InfUVP:
     def __init__(self, p_high=None, p_low=None):
         self.generate_coins()
 
         if p_high is not None:
-            self.p_high = p_high
+            self.p_high = mp.mpf(p_high)
         
         if p_low is not None:
-            self.p_low = p_low
+            self.p_low = mp.mpf(p_low)
 
     # Guarantees that coins are on both sides of 1/2
     # Other case isn't interesting
@@ -22,28 +27,23 @@ class InfUVP:
         eps_heads = np.random.rand() * 0.5
         eps_tails = np.random.rand() * 0.5
 
-        self.p_high = 0.5 + eps_heads
-        self.p_low = 0.5 - eps_tails
+        self.p_high = mp.mpf(0.5 + eps_heads)
+        self.p_low = mp.mpf(0.5 - eps_tails)
     
     def generate_sequence(self, n):
-        head_bias = 0.5
-        tail_bias = 0.5
+        head_bias = mp.mpf(0.5)
+        tail_bias = mp.mpf(0.5)
 
-        bias_sequence = np.empty(shape=(n,), dtype=float)
-        coin_sequence = np.empty(shape=(n,), dtype=bool) # True = heads, False = tails
+        self.bias_sequence = []
 
         # NOTE: this is only optimal because both coins are guaranteed
         #       to be on either side of 1/2
-        for k in range(n):
-            bias_sequence[k] = head_bias
+        for _ in range(n):
+            self.bias_sequence.append(head_bias)
             if tail_bias >= head_bias:
-                coin_sequence[k] = True
-
                 head_bias *= self.p_high
                 tail_bias *= 1 - self.p_high
             else:
-                coin_sequence[k] = False
-
                 head_bias *= self.p_low
                 tail_bias *= 1 - self.p_low
             
@@ -51,11 +51,37 @@ class InfUVP:
             head_bias /= normalizer
             tail_bias /= normalizer
         
-        return coin_sequence, bias_sequence
+        return self.bias_sequence
+
+    # TODO: sliding window period check
             
 def plot_sequences(n, p_high=None, p_low=None):
     iuvp = InfUVP(p_high, p_low)
-    coin_sequence, bias_sequence = iuvp.generate_sequence(n)
+    bias_sequence = iuvp.generate_sequence(n)
+
+    # slow check for repeated biases
+    # TODO: optimize this
+
+    min_ij = (None, None)
+    min_diff = mp.mpf('inf')
+    for i, bias in enumerate(bias_sequence):
+        for j in range(i + 1, len(bias_sequence)):
+            diff = abs(bias - bias_sequence[j])
+            if diff < min_diff:
+                min_ij = (i, j)
+                min_diff = diff
+
+            if diff <= np.finfo(float).eps:
+                print(f"Biases repeat at {i}, {j}")
+
+    # printing
+
+    print(f"Minimum difference: {min_diff} between {min_ij}")
+
+    for i, bias in enumerate(bias_sequence):
+        print(f"{i + 1}: {bias}")
+
+    # plotting
 
     fig, ax = plt.subplots()
     xticks = list(range(n))
@@ -67,18 +93,18 @@ def plot_sequences(n, p_high=None, p_low=None):
     bar_height = 1
     for j, bias in zip(xticks, bias_sequence):
         color = 'gray'
-        if bias < 0.5: # chose heads
+        if bias > 0.5: # chose tails
             color = 'red'
-        elif bias > 0.5: # chose tails
+        elif bias < 0.5: # chose heads
             color = 'blue'
         
         ax.bar(j, bar_height, width=1, color=color, alpha=0.3, align='center')
 
-    ax.set_title(f'H = {iuvp.p_high}, T = {iuvp.p_low}')
+    ax.set_title(f'H = {round(iuvp.p_high, 5)}, T = {round(iuvp.p_low, 5)}')
     ax.set_xlabel('Coin #')
     ax.set_ylabel('Bias')
 
     plt.show()
 
 if __name__ == '__main__':
-    plot_sequences(100, 0.75, 0.125)
+    plot_sequences(200, 0.75, 0.125)
