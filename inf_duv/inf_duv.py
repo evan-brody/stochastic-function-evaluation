@@ -54,6 +54,25 @@ class InfUVP:
         return self.bias_sequence
 
     # TODO: sliding window period check
+
+    def get_block_length_sequence(self):
+        oeis = []
+        current_length = 0
+        is_heads = True
+        for i in range(len(self.bias_sequence)):
+            if self.bias_sequence[i] < 0.5 and is_heads:
+                is_heads = False
+                oeis.append(current_length)
+                current_length = 1
+            elif self.bias_sequence[i] > 0.5 and not is_heads:
+                is_heads = True
+                oeis.append(current_length)
+                current_length = 1
+            else:
+                current_length += 1
+        
+        self.oeis = oeis
+        print(self.oeis)
             
 def plot_sequences(n, p_high=None, p_low=None):
     iuvp = InfUVP(p_high, p_low)
@@ -78,8 +97,11 @@ def plot_sequences(n, p_high=None, p_low=None):
 
     print(f"Minimum difference: {min_diff} between {min_ij}")
 
-    for i, bias in enumerate(bias_sequence):
-        print(f"{i + 1}: {bias}")
+    iuvp.get_block_length_sequence()
+    print(iuvp.oeis)
+
+    # for i, bias in enumerate(bias_sequence):
+    #     print(f"{i + 1}: {bias}")
 
     # plotting
 
@@ -107,4 +129,4 @@ def plot_sequences(n, p_high=None, p_low=None):
     plt.show()
 
 if __name__ == '__main__':
-    plot_sequences(200, 0.75, 0.125)
+    plot_sequences(100, 0.7, 0.1)
