@@ -72,7 +72,10 @@ class InfUVP:
                 current_length += 1
         
         self.oeis = oeis
-        print(self.oeis)
+
+        with open('output.txt', 'w') as f:
+            print(self.oeis, file=f)
+
             
 def plot_sequences(n, p_high=None, p_low=None):
     iuvp = InfUVP(p_high, p_low)
@@ -129,4 +132,4 @@ def plot_sequences(n, p_high=None, p_low=None):
     plt.show()
 
 if __name__ == '__main__':
-    plot_sequences(100, 0.7, 0.1)
+    plot_sequences(200, 0.7, 0.35)
