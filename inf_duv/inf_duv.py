@@ -178,8 +178,8 @@ class DUV:
 
 
 GENERATION_SIZE = 1000
-GENERATION_COUNT = 100
-DNK = (3, 6, 3)
+GENERATION_COUNT = 1000
+DNK = (3, 8, 2)
 if __name__ == '__main__':
     i = 1
     max_diff = 0
@@ -223,5 +223,6 @@ if __name__ == '__main__':
             i += 1
 
     print(max_diff); print()
+    print(max_diff_instance.distribution); print()
     max_diff_instance.print_OPT(); print()
     max_diff_instance.print_greedy(); print()
