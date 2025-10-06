@@ -163,7 +163,7 @@ class DUV:
         return vector
     
     def init_child_distribution(self, parent_distribution):
-        for j in range(self.n):
+        for j in range(self.k):
             new_die = copy.deepcopy(parent_distribution[j])
             scale_vector = self.get_scale_vector()
             for c in range(self.d):
