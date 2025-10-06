@@ -113,23 +113,13 @@ class DUV:
                 self.OPT = copy.deepcopy(strategy)
         
         self.EOPT = cost_to_beat
-    
-    def brute_force_inf_OPT(self):
-        cost_to_beat = float('inf')
-        for strategy in it.product(range(self.n), repeat=self.n):
-            this_strat_ecost = self.expected_cost(strategy)
-            if this_strat_ecost < cost_to_beat:
-                cost_to_beat = this_strat_ecost
-                self.OPT = copy.deepcopy(strategy)
-        
-        self.EOPT = cost_to_beat
 
     def generate_greedy_with_first_test(self, first):
         used = np.array([False] * self.n)
         strategy = np.empty(shape=(self.n,), dtype=int)
 
         strategy[0] = first
-        # used[first] = True # disabled for inf sequence testing
+        used[first] = True
 
         current_prs = np.array([
             self.distribution[first][c] for c in range(self.d)
@@ -151,7 +141,7 @@ class DUV:
                     best_test = j
             
             strategy[k] = best_test
-            # used[best_test] = True # disabled for inf sequence testing
+            used[best_test] = True
             for c in range(self.d):
                 current_prs[c] *= self.distribution[best_test][c]
         
@@ -368,58 +358,43 @@ if __name__ == '__main__':
     max_diff = 0
     max_diff_instance = None
 
-    for _ in range(10000):
+    for _ in range(1_000_000):
         duv = DUV(*DN)
         duv.init_distribution()
 
-        duv.brute_force_inf_OPT()
-        duv.generate_greedy()
+        duv.generate_OPT()
+        duv.generate_simple_greedy()
 
-        diff = duv.greedy_cost - duv.EOPT
-        if diff > 0.0001:
-            print(duv.distribution); print()
-            duv.print_OPT(); print()
-            duv.print_greedy(); print()
-            print(f"============== {_} =============\n")
-            while True: pass
+        diff = duv.simple_greedy_cost - duv.EOPT
+        if diff > max_diff:
+            max_diff = diff
+            max_diff_instance = copy.deepcopy(duv)
 
-    # for _ in range(1_000_000):
-    #     duv = DUV(*DN)
-    #     duv.init_distribution()
-
-    #     duv.generate_OPT()
-    #     duv.generate_simple_greedy()
-
-    #     diff = duv.simple_greedy_cost - duv.EOPT
-    #     if diff > max_diff:
-    #         max_diff = diff
-    #         max_diff_instance = copy.deepcopy(duv)
-
-    #     if i % 1000 == 0:
-    #         print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
+        if i % 1000 == 0:
+            print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
         
-    #     i += 1
+        i += 1
     
-    # for _ in range(GENERATION_COUNT):
-    #     current_parent = copy.deepcopy(max_diff_instance)
-    #     for __ in range(GENERATION_SIZE):
-    #         duv = DUV(*DN)
-    #         duv.init_child_distribution(current_parent.distribution)
+    for _ in range(GENERATION_COUNT):
+        current_parent = copy.deepcopy(max_diff_instance)
+        for __ in range(GENERATION_SIZE):
+            duv = DUV(*DN)
+            duv.init_child_distribution(current_parent.distribution)
 
-    #         duv.generate_OPT()
-    #         duv.generate_simple_greedy()
+            duv.generate_OPT()
+            duv.generate_simple_greedy()
 
-    #         diff = duv.simple_greedy_cost - duv.EOPT
+            diff = duv.simple_greedy_cost - duv.EOPT
 
-    #         if diff > max_diff:
-    #             max_diff = diff
-    #             max_diff_instance = copy.deepcopy(duv)
+            if diff > max_diff:
+                max_diff = diff
+                max_diff_instance = copy.deepcopy(duv)
 
-    #         if i % GENERATION_SIZE == 0:
-    #             print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+            if i % GENERATION_SIZE == 0:
+                print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
             
-    #         i += 1
+            i += 1
 
-    # print(max_diff); print()
-    # max_diff_instance.print_OPT(); print()
-    # max_diff_instance.print_simple_greedy(); print()
+    print(max_diff); print()
+    max_diff_instance.print_OPT(); print()
+    max_diff_instance.print_simple_greedy(); print()

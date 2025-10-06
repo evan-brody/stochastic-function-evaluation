@@ -1,135 +1,227 @@
 # @file     inf_duv.py
 # @author   Evan Brody
-# @brief    Testbed for infinite coin flipping sequences
+# @brief    Testbed for infinite dice rolling sequences
 
 import numpy as np
-import matplotlib.pyplot as plt
-import math
-from mpmath import mp
+import itertools as it
+import functools as ft
+import copy
 
-# Configure mp
-mp.dps = 100     # Decimal places used by mp.mpf
-mp.pretty = True # Turn pretty-printing on
+class DUV:
+    def __init__(self, d, n, k):
+        self.d = d
+        self.n = n
+        self.k = k
+        self.distribution = np.empty(shape=(self.k, self.d), dtype=float)
+        # self.init_distribution()
 
-class InfUVP:
-    def __init__(self, p_high=None, p_low=None):
-        self.generate_coins()
+    # Generates a distribution over the tests and colors
+    def init_distribution(self):
+        # Generates random "markers" in [0, 1]
+        self.distribution = np.random.rand(self.k, self.d)
 
-        if p_high is not None:
-            self.p_high = mp.mpf(p_high)
-        
-        if p_low is not None:
-            self.p_low = mp.mpf(p_low)
+        self.distribution[:, -1] = 1
+        self.distribution.sort(axis=1)
 
-    # Guarantees that coins are on both sides of 1/2
-    # Other case isn't interesting
-    def generate_coins(self):
-        eps_heads = np.random.rand() * 0.5
-        eps_tails = np.random.rand() * 0.5
-
-        self.p_high = mp.mpf(0.5 + eps_heads)
-        self.p_low = mp.mpf(0.5 - eps_tails)
+        # Calculate the space between markers, which will be the
+        # probability of some outcome
+        for die in self.distribution:
+            for i in range(self.d - 1, 0, -1):
+                die[i] -= die[i - 1]
     
-    def generate_sequence(self, n):
-        head_bias = mp.mpf(0.5)
-        tail_bias = mp.mpf(0.5)
+    def expected_cost(self, strategy):
+        cost = 1
+        pr_only_seen = np.array([ p for p in self.distribution[strategy[0]] ])
+        for test in strategy[1:]:
+            cost += sum(pr_only_seen)
+            for c, p in enumerate(self.distribution[test]):
+                pr_only_seen[c] *= p
+        
+        return cost
+    
+    def print_OPT(self):
+        print("OPT:", [ int(j) for j in self.OPT ])
+        print("E[OPT]:", self.EOPT)
+        for c in range(self.d):
+            for j in self.OPT:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+    
+    def brute_force_OPT(self):
+        cost_to_beat = float('inf')
+        for strategy in it.product(range(self.k), repeat=self.n):
+            this_strat_ecost = self.expected_cost(strategy)
+            if this_strat_ecost < cost_to_beat:
+                cost_to_beat = this_strat_ecost
+                self.OPT = copy.deepcopy(strategy)
+        
+        self.EOPT = cost_to_beat
 
-        self.bias_sequence = []
+    def generate_greedy_with_first_test(self, first):
+        strategy = np.empty(shape=(self.n,), dtype=int)
 
-        # NOTE: this is only optimal because both coins are guaranteed
-        #       to be on either side of 1/2
-        for _ in range(n):
-            self.bias_sequence.append(head_bias)
-            if tail_bias >= head_bias:
-                head_bias *= self.p_high
-                tail_bias *= 1 - self.p_high
-            else:
-                head_bias *= self.p_low
-                tail_bias *= 1 - self.p_low
+        strategy[0] = first
+
+        current_prs = np.array([
+            self.distribution[first][c] for c in range(self.d)
+        ])
+
+        for m in range(1, self.n):
+            best_score = float('inf')
+            best_test = None
+            for j in range(self.k):
+
+                this_test_score = 0
+                for c in range(self.d):
+                    this_test_score += current_prs[c] * self.distribution[j][c]
+                
+                if this_test_score < best_score:
+                    best_score = this_test_score
+                    best_test = j
             
-            normalizer = head_bias + tail_bias
-            head_bias /= normalizer
-            tail_bias /= normalizer
+            strategy[m] = best_test
+            for c in range(self.d):
+                current_prs[c] *= self.distribution[best_test][c]
         
-        return self.bias_sequence
-
-    # TODO: sliding window period check
-
-    def get_block_length_sequence(self):
-        oeis = []
-        current_length = 0
-        is_heads = True
-        for i in range(len(self.bias_sequence)):
-            if self.bias_sequence[i] < 0.5 and is_heads:
-                is_heads = False
-                oeis.append(current_length)
-                current_length = 1
-            elif self.bias_sequence[i] > 0.5 and not is_heads:
-                is_heads = True
-                oeis.append(current_length)
-                current_length = 1
-            else:
-                current_length += 1
+        return strategy
+    
+    def generate_greedy(self):
+        self.greedy = np.empty(shape=(self.n,), dtype=int)
+        self.greedy_cost = float('inf')
         
-        self.oeis = oeis
+        for j in range(self.k):
+            starts_with_j = self.generate_greedy_with_first_test(j)
+            starts_with_j_cost = self.expected_cost(starts_with_j)
 
-        with open('output.txt', 'w') as f:
-            print(self.oeis, file=f)
+            if starts_with_j_cost < self.greedy_cost:
+                self.greedy_cost = starts_with_j_cost
+                self.greedy = copy.deepcopy(starts_with_j)
+    
+    def print_greedy(self):
+        print("Greedy:", [ int(j) for j in self.greedy ])
+        print("E[Greedy]:", self.greedy_cost)
+        for c in range(self.d):
+            for j in self.greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
 
+    # TODO: change to accomodate k < n
+    # def generate_simple_greedy(self):
+    #     self.simple_greedy = np.empty(shape=(self.n,), dtype=int)
+
+    #     context = np.ones(shape=(self.d,), dtype=float)
+
+    #     k = 0
+    #     while k < self.n:
+    #         min_score = self.n
+    #         best_test = 0
+
+    #         for j in range(self.n):
+    #             this_test_score = 0
+    #             for c in range(self.d):
+    #                 this_test_score += context[c] * self.distribution[j][c]
+                
+    #             if this_test_score < min_score:
+    #                 min_score = this_test_score
+    #                 best_test = j
             
-def plot_sequences(n, p_high=None, p_low=None):
-    iuvp = InfUVP(p_high, p_low)
-    bias_sequence = iuvp.generate_sequence(n)
+    #         self.simple_greedy[k] = best_test
 
-    # slow check for repeated biases
-    # TODO: optimize this
+    #         for c in range(self.d):
+    #             context[c] *= self.distribution[best_test][c]
 
-    min_ij = (None, None)
-    min_diff = mp.mpf('inf')
-    for i, bias in enumerate(bias_sequence):
-        for j in range(i + 1, len(bias_sequence)):
-            diff = abs(bias - bias_sequence[j])
-            if diff < min_diff:
-                min_ij = (i, j)
-                min_diff = diff
-
-            if diff <= np.finfo(float).eps:
-                print(f"Biases repeat at {i}, {j}")
-
-    # printing
-
-    print(f"Minimum difference: {min_diff} between {min_ij}")
-
-    iuvp.get_block_length_sequence()
-    print(iuvp.oeis)
-
-    # for i, bias in enumerate(bias_sequence):
-    #     print(f"{i + 1}: {bias}")
-
-    # plotting
-
-    fig, ax = plt.subplots()
-    xticks = list(range(n))
-
-    ax.plot(bias_sequence, marker='o', linestyle='None', color='black')
-    ax.set_xticks(xticks)
-
-    # color in the biases
-    bar_height = 1
-    for j, bias in zip(xticks, bias_sequence):
-        color = 'gray'
-        if bias > 0.5: # chose tails
-            color = 'red'
-        elif bias < 0.5: # chose heads
-            color = 'blue'
+    #         k += 1
         
-        ax.bar(j, bar_height, width=1, color=color, alpha=0.3, align='center')
+    #     self.simple_greedy_cost = self.expected_cost(self.simple_greedy)
 
-    ax.set_title(f'H = {round(iuvp.p_high, 5)}, T = {round(iuvp.p_low, 5)}')
-    ax.set_xlabel('Coin #')
-    ax.set_ylabel('Bias')
+    # def print_simple_greedy(self):
+    #     print("SGreedy:", [ int(j) for j in self.simple_greedy ])
+    #     print("E[SGreedy]:", self.simple_greedy_cost)
+    #     for c in range(self.d):
+    #         for j in self.simple_greedy:
+    #             print(round(self.distribution[j][c], 3), end='\t')
+    #         print()
 
-    plt.show()
+    def get_scale_vector(self):
+        scale_vector = np.ones(shape=(self.d,), dtype=float)
 
+        for c in range(self.d):
+            scale_vector[c] += np.random.normal(scale=0.01)
+
+        return scale_vector
+    
+    def normalize(self, vector):
+        sv = sum(vector)
+        vector[:] /= sv
+
+        return vector
+    
+    def clamp(self, vector):
+        for j in range(len(vector)):
+            vector[j] = min(1, vector[j])
+        
+        return vector
+    
+    def init_child_distribution(self, parent_distribution):
+        for j in range(self.n):
+            new_die = copy.deepcopy(parent_distribution[j])
+            scale_vector = self.get_scale_vector()
+            for c in range(self.d):
+                new_die[c] *= scale_vector[c]
+            
+            new_die = self.clamp(new_die)
+            new_die = self.normalize(new_die)
+
+            self.distribution[j] = copy.deepcopy(new_die)
+        
+        return self.distribution
+
+
+GENERATION_SIZE = 1000
+GENERATION_COUNT = 100
+DNK = (3, 6, 3)
 if __name__ == '__main__':
-    plot_sequences(200, 0.7, 0.35)
+    i = 1
+    max_diff = 0
+    max_diff_instance = None
+
+    for _ in range(100_000):
+        duv = DUV(*DNK)
+        duv.init_distribution()
+
+        duv.brute_force_OPT()
+        duv.generate_greedy()
+
+        diff = duv.greedy_cost - duv.EOPT
+        if diff > max_diff:
+            max_diff = diff
+            max_diff_instance = copy.deepcopy(duv)
+
+        if i % 1000 == 0:
+            print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
+        
+        i += 1
+    
+    for _ in range(GENERATION_COUNT):
+        current_parent = copy.deepcopy(max_diff_instance)
+        for __ in range(GENERATION_SIZE):
+            duv = DUV(*DNK)
+            duv.init_child_distribution(current_parent.distribution)
+
+            duv.brute_force_OPT()
+            duv.generate_greedy()
+
+            diff = duv.greedy_cost - duv.EOPT
+
+            if diff > max_diff:
+                max_diff = diff
+                max_diff_instance = copy.deepcopy(duv)
+
+            if i % GENERATION_SIZE == 0:
+                print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+            
+            i += 1
+
+    print(max_diff); print()
+    max_diff_instance.print_OPT(); print()
+    max_diff_instance.print_greedy(); print()
