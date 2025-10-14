@@ -132,4 +132,4 @@ def plot_sequences(n, p_high=None, p_low=None):
     plt.show()
 
 if __name__ == '__main__':
-    plot_sequences(200, 0.7, 0.35)
+    plot_sequences(200, 0.75, 1/3)

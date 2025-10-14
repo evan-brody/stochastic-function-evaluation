@@ -6,6 +6,42 @@ import numpy as np
 import itertools as it
 import functools as ft
 import copy
+import sys
+import matplotlib.pyplot as plt
+
+N = 100
+
+def point_grad(r1, g1, r2, g2):
+    # die 1 is the greedier choice
+    b1 = 1 - r1 - g1
+    b2 = 1 - r2 - g2
+
+    one_dot_two = b1 * b2 + r1 * r2 + g1 * g2
+    if b2 == 1 or r2 == 1 or g2 == 1:
+        one_dot_two_inf = float('inf')
+    else:
+        one_dot_two_inf = b1 / (1 - b2) + r1 / (1 - r2) + g1 / (1 - g2)
+    one_dot_self = r1 * r1 + g1 * g1 + b1 * b1
+    two_dot_self = r2 * r2 + g2 * g2 + b2 * b2
+    
+    if r1 == 1 or g1 == 1 or b1 == 1:
+        one_inf = float('inf')
+    else:
+        one_inf = r1 / (1 - r1) + g1 / (1 - g1) + b1 / (1 - b1)
+    
+    if r1 == 1 or g1 == 1 or b1 == 1:
+        two_dot_one_inf = float('inf')
+    else:
+        two_dot_one_inf = r2 / (1 - r1) + g2 / (1 - g1) + b2 / (1 - b1)
+
+    if one_dot_self <= one_dot_two and one_inf <= two_dot_one_inf:
+        return 'red'
+    elif one_dot_self <= one_dot_two:
+        return 'yellow'
+    elif one_inf <= two_dot_one_inf:
+        return 'orange'
+    else:
+        return 'green'
 
 class DUV:
     def __init__(self, d, n, k):
@@ -49,7 +85,9 @@ class DUV:
     
     def brute_force_OPT(self):
         cost_to_beat = float('inf')
-        for strategy in it.product(range(self.k), repeat=self.n):
+        strategies = list(it.product(range(self.k), repeat=self.n))
+        strategies = strategies[::-1]
+        for strategy in strategies:
             this_strat_ecost = self.expected_cost(strategy)
             if this_strat_ecost < cost_to_beat:
                 cost_to_beat = this_strat_ecost
@@ -175,15 +213,124 @@ class DUV:
             self.distribution[j] = copy.deepcopy(new_die)
         
         return self.distribution
+    
+    def dz_helper(self, j):
+        if not (j == 0 or j == 1): return True
 
+        fixed_die = self.distribution[j]
+        other_die = self.distribution[abs(1 - j)]
+
+        other_dot_fixed = 0
+        fixed_dot_self = 0
+        for c in range(self.d):
+            other_dot_fixed += other_die[c] * fixed_die[c]
+            fixed_dot_self += fixed_die[c] * fixed_die[c]
+        
+        other_dot_fixed_inf = 0
+        fixed_inf = 0
+        for c in range(self.d):
+            if fixed_die[c] == 1:
+                other_dot_fixed_inf = float('inf')
+                fixed_inf = float('inf')
+            else:
+                other_dot_fixed_inf += other_die[c] / (1.0 - fixed_die[c])
+                fixed_inf += fixed_die[c] / (1.0 - fixed_die[c])
+
+        return (other_dot_fixed <= fixed_dot_self) != (other_dot_fixed_inf <= fixed_inf)
+
+    def in_danger_zone(self):
+        if self.k != 2: return True
+
+        return self.dz_helper(0) or self.dz_helper(1)
+
+    def plot_two_dice(self):
+        if self.k != 2: return
+
+        r1 = self.distribution[0][0]
+        g1 = self.distribution[0][1]
+
+        xpoints = []
+        ypoints = []
+
+        for i, j in it.product(range(N), repeat=2):
+            if i + j > N: continue
+            r2 = i / N
+            g2 = j / N
+
+            xpoints.append(r2)
+            ypoints.append(g2)
+
+            color = point_grad(r1, g1, r2, g2)
+
+            plt.plot(r2, g2, marker='.', color=color)
+    
+        plt.plot(r1, g1, marker='o', color='black')
+        plt.plot(self.distribution[1][0], self.distribution[1][1], marker='o', color='black')
+        plt.show()
+
+# Plots a map of whether or not greedy is optimal
+# TODO: check strong condition instead
+def plot_greedy_map(r, g):
+    duv = DUV(3, 10, 2)
+    duv.distribution[0][0] = r
+    duv.distribution[0][1] = g
+    duv.distribution[0][2] = 1.0 - r - g
+
+    for i, j in it.product(range(N), repeat=2):
+        if i + j > N: continue
+        r2 = i / N
+        g2 = j / N
+
+        duv.distribution[1][0] = r2
+        duv.distribution[1][1] = g2
+        duv.distribution[1][2] = 1.0 - r2 - g2
+
+        duv.brute_force_OPT()
+        # duv.generate_greedy()
+
+        if len(np.unique(duv.OPT)) == 1:
+            if duv.OPT[0] == 0:
+                plt.plot(r2, g2, marker='.', color='green')
+            elif duv.OPT[0] == 1:
+                plt.plot(r2, g2, marker='.', color='blue')
+        else:
+            plt.plot(r2, g2, marker='.', color='red')
+
+        # if duv.greedy_cost > duv.EOPT:
+        #     plt.plot(r2, g2, marker='.', color='red')
+        #     # if len(np.unique(duv.OPT)) == 1:
+        #     #     plt.plot(r2, g2, marker='.', color='orange')
+        # else:
+        #     plt.plot(r2, g2, marker='.', color='green')
+        #     # if len(np.unique(duv.OPT)) == 1:
+        #     #     plt.plot(r2, g2, marker='.', color='blue')
+
+    plt.plot(r, g, marker='o', color='black')
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 1000
-DNK = (3, 8, 2)
+DNK = (3, 10, 2)
 if __name__ == '__main__':
-    i = 1
-    max_diff = 0
-    max_diff_instance = None
+
+    r = 1.7/3
+    g = 1.1/3
+    plot_greedy_map(r, g)
+    plt.show()
+    sys.exit(0)
+
+    duv = DUV(3, 12, 2)
+
+    duv.distribution[0][0] = r
+    duv.distribution[0][1] = g
+    duv.distribution[0][2] = 1.0 - r - g
+
+    duv.distribution[1][0] = 1/3
+    duv.distribution[1][1] = 1/3
+    duv.distribution[1][2] = 1/3
+
+    duv.brute_force_OPT()
+    print(duv.OPT)
+    sys.exit(0)
 
     for _ in range(100_000):
         duv = DUV(*DNK)
@@ -193,6 +340,14 @@ if __name__ == '__main__':
         duv.generate_greedy()
 
         diff = duv.greedy_cost - duv.EOPT
+        if diff > 0 and not duv.in_danger_zone():
+            duv.plot_two_dice()
+            print(diff); print()
+            print(duv.distribution); print()
+            duv.print_OPT(); print()
+            duv.print_greedy(); print()
+            sys.exit(0)
+
         if diff > max_diff:
             max_diff = diff
             max_diff_instance = copy.deepcopy(duv)

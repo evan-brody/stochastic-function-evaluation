@@ -29,9 +29,9 @@ def point_grad(r1, g1, r2, g2):
 
     one_dot_two = b1 * b2 + r1 * r2 + g1 * g2
     if b2 == 1 or r2 == 1 or g2 == 1:
-        one_dot_inf_two = float('inf')
+        one_dot_two_inf = float('inf')
     else:
-        one_dot_inf_two = (b1 * b2) / (1 - b2) + (r1 * r2) * (1 - r2) + (g1 * g2) / (1 - g2)
+        one_dot_two_inf = b1 / (1 - b2) + r1 / (1 - r2) + g1 / (1 - g2)
     one_dot_self = r1 * r1 + g1 * g1 + b1 * b1
     two_dot_self = r2 * r2 + g2 * g2 + b2 * b2
     
@@ -46,13 +46,13 @@ def point_grad(r1, g1, r2, g2):
         two_dot_one_inf = r2 / (1 - r1) + g2 / (1 - g1) + b2 / (1 - b1)
 
     if one_dot_self <= one_dot_two and one_inf <= two_dot_one_inf:
-        return 'green'
+        return 'red'
     elif one_dot_self <= one_dot_two:
         return 'yellow'
     elif one_inf <= two_dot_one_inf:
         return 'orange'
     else:
-        return 'red'
+        return 'green'
 
 def plot_ranking_color():
     xpoints = []
@@ -75,6 +75,9 @@ def plot_ranking_color():
 def plot_point_grad():
     r1 = np.random.rand() / 2
     g1 = np.random.rand() / 2
+
+    r1 = 2/3
+    g1 = 1/3
 
     xpoints = []
     ypoints = []
