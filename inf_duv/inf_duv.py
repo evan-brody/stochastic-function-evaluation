@@ -267,11 +267,44 @@ class DUV:
         plt.plot(r1, g1, marker='o', color='black')
         plt.plot(self.distribution[1][0], self.distribution[1][1], marker='o', color='black')
         plt.show()
+    
+    # Conjectured condition for using b greedily
+    def weak_condition_asymmetric(self, flip=False):
+        if self.k != 2:
+            raise Exception("Weak condition only applies when k = 2.")
+
+        if not flip:
+            a = self.distribution[0]
+            b = self.distribution[1]
+        else:
+            a = self.distribution[1]
+            b = self.distribution[0]
+
+        a_dot_a = sum([ a[c] * a[c] for c in range(self.d) ])
+        a_dot_b = sum([ a[c] * b[c] for c in range(self.d) ])
+
+        if a_dot_b >= a_dot_a:
+            return False
+        
+        for c in range(self.d):
+            if a[c] == 1: return True
+        
+        a_dot_a_inf = sum([ a[c] * (a[c] / (1.0 - a[c])) for c in range(self.d) ])
+        b_dot_a_inf = sum([ b[c] * (a[c] / (1.0 - a[c])) for c in range(self.d) ])
+
+        if b_dot_a_inf >= a_dot_a_inf:
+            return False
+        
+        return True
+    
+    def weak_condition_symmetric(self):
+        return self.weak_condition_asymmetric() and self.weak_condition_asymmetric(True)
 
 # Plots a map of whether or not greedy is optimal
 # TODO: check strong condition instead
 def plot_greedy_map(r, g):
-    duv = DUV(3, 10, 2)
+    d = 3; n = 6; k = 2
+    duv = DUV(d, n, k)
     duv.distribution[0][0] = r
     duv.distribution[0][1] = g
     duv.distribution[0][2] = 1.0 - r - g
@@ -285,53 +318,71 @@ def plot_greedy_map(r, g):
         duv.distribution[1][1] = g2
         duv.distribution[1][2] = 1.0 - r2 - g2
 
+        duv.generate_greedy()
         duv.brute_force_OPT()
-        # duv.generate_greedy()
 
-        if len(np.unique(duv.OPT)) == 1:
-            if duv.OPT[0] == 0:
-                plt.plot(r2, g2, marker='.', color='green')
-            elif duv.OPT[0] == 1:
-                plt.plot(r2, g2, marker='.', color='blue')
-        else:
-            plt.plot(r2, g2, marker='.', color='red')
+        # condition = duv.weak_condition_symmetric()
+        # greedy_optimal = not (duv.greedy_cost > duv.EOPT)
 
-        # if duv.greedy_cost > duv.EOPT:
+        # if condition and not greedy_optimal:
         #     plt.plot(r2, g2, marker='.', color='red')
-        #     # if len(np.unique(duv.OPT)) == 1:
-        #     #     plt.plot(r2, g2, marker='.', color='orange')
         # else:
         #     plt.plot(r2, g2, marker='.', color='green')
-        #     # if len(np.unique(duv.OPT)) == 1:
-        #     #     plt.plot(r2, g2, marker='.', color='blue')
+
+        # ab = duv.weak_condition_asymmetric()
+        # ba = duv.weak_condition_asymmetric(True)
+
+        # if ab and ba:
+        #     plt.plot(r2, g2, marker='.', color='purple')
+        # elif ab:
+        #     plt.plot(r2, g2, marker='.', color='red')
+        # elif ba:
+        #     plt.plot(r2, g2, marker='.', color='blue')
+        # else:
+        #     plt.plot(r2, g2, marker='.', color='yellow')
+
+        # Condition map
+        # if duv.weak_condition_symmetric():
+        #     plt.plot(r2, g2, marker='.', color='green')
+        # else:
+        #     plt.plot(r2, g2, marker='.', color='red')
+
+        # Greedy optimal map
+        if duv.greedy_cost > duv.EOPT:
+            plt.plot(r2, g2, marker='.', color='red')
+        else:
+            plt.plot(r2, g2, marker='.', color='green')
 
     plt.plot(r, g, marker='o', color='black')
+    plt.title(f"d={d}; n={n}; k={k}")
 
 GENERATION_SIZE = 1000
-GENERATION_COUNT = 1000
-DNK = (3, 10, 2)
+GENERATION_COUNT = 100
+DNK = (3, 8, 2)
 if __name__ == '__main__':
 
-    r = 1.7/3
-    g = 1.1/3
+    r = 1/4
+    g = 1/5
     plot_greedy_map(r, g)
     plt.show()
     sys.exit(0)
 
-    duv = DUV(3, 12, 2)
+    # duv = DUV(3, 12, 2)
 
-    duv.distribution[0][0] = r
-    duv.distribution[0][1] = g
-    duv.distribution[0][2] = 1.0 - r - g
+    # duv.distribution[0][0] = r
+    # duv.distribution[0][1] = g
+    # duv.distribution[0][2] = 1.0 - r - g
 
-    duv.distribution[1][0] = 1/3
-    duv.distribution[1][1] = 1/3
-    duv.distribution[1][2] = 1/3
+    # duv.distribution[1][0] = 1/3
+    # duv.distribution[1][1] = 1/3
+    # duv.distribution[1][2] = 1/3
 
-    duv.brute_force_OPT()
-    print(duv.OPT)
-    sys.exit(0)
+    # duv.brute_force_OPT()
+    # print(duv.OPT)
+    # sys.exit(0)
 
+    max_diff = float('-inf')
+    i = 1
     for _ in range(100_000):
         duv = DUV(*DNK)
         duv.init_distribution()
@@ -340,13 +391,13 @@ if __name__ == '__main__':
         duv.generate_greedy()
 
         diff = duv.greedy_cost - duv.EOPT
-        if diff > 0 and not duv.in_danger_zone():
-            duv.plot_two_dice()
-            print(diff); print()
-            print(duv.distribution); print()
-            duv.print_OPT(); print()
-            duv.print_greedy(); print()
-            sys.exit(0)
+        # if diff > 0 and duv.weak_condition_symmetric():
+        #     duv.plot_two_dice()
+        #     print(diff); print()
+        #     print(duv.distribution); print()
+        #     duv.print_OPT(); print()
+        #     duv.print_greedy(); print()
+        #     sys.exit(0)
 
         if diff > max_diff:
             max_diff = diff
