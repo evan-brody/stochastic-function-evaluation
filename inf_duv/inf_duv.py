@@ -267,9 +267,8 @@ class DUV:
         plt.plot(r1, g1, marker='o', color='black')
         plt.plot(self.distribution[1][0], self.distribution[1][1], marker='o', color='black')
         plt.show()
-    
-    # Conjectured condition for using b greedily
-    def weak_condition_asymmetric(self, flip=False):
+
+    def weak_condition_single(self, flip=False):
         if self.k != 2:
             raise Exception("Weak condition only applies when k = 2.")
 
@@ -282,28 +281,75 @@ class DUV:
 
         a_dot_a = sum([ a[c] * a[c] for c in range(self.d) ])
         a_dot_b = sum([ a[c] * b[c] for c in range(self.d) ])
-
-        if a_dot_b >= a_dot_a:
-            return False
         
+        return a_dot_b < a_dot_a
+
+    def weak_condition_inf(self, flip=False):
+        if self.k != 2:
+            raise Exception("Weak condition only applies when k = 2.")
+
+        if not flip:
+            a = self.distribution[0]
+            b = self.distribution[1]
+        else:
+            a = self.distribution[1]
+            b = self.distribution[0]
+
         for c in range(self.d):
             if a[c] == 1: return True
         
         a_dot_a_inf = sum([ a[c] * (a[c] / (1.0 - a[c])) for c in range(self.d) ])
         b_dot_a_inf = sum([ b[c] * (a[c] / (1.0 - a[c])) for c in range(self.d) ])
 
-        if b_dot_a_inf >= a_dot_a_inf:
-            return False
-        
-        return True
+        return b_dot_a_inf < a_dot_a_inf
+    
+    # Conjectured condition for using b greedily
+    def weak_condition_asymmetric(self, flip=False):
+        if self.k != 2:
+            raise Exception("Weak condition only applies when k = 2.")
+
+        return self.weak_condition_single(flip) and self.weak_condition_inf(flip)
     
     def weak_condition_symmetric(self):
         return self.weak_condition_asymmetric() and self.weak_condition_asymmetric(True)
 
+d = 3; n = 8; k = 2
+def plot_condition_map(r, g):
+    duv = DUV(d, n, k)
+    duv.distribution[0][0] = r
+    duv.distribution[0][1] = g
+    duv.distribution[0][2] = 1.0 - r - g
+
+    for i, j in it.product(range(N), repeat=2):
+        if i + j > N: continue
+        r2 = i / N
+        g2 = j / N
+
+        duv.distribution[1][0] = r2
+        duv.distribution[1][1] = g2
+        duv.distribution[1][2] = 1.0 - r2 - g2
+
+        ab_single = duv.weak_condition_single()
+        ba_single = duv.weak_condition_single(True)
+
+        ab_inf = duv.weak_condition_inf()
+        ba_inf = duv.weak_condition_inf(True)
+
+        if ab_single and ab_inf:
+            plt.plot(r2, g2, marker='.', color='purple')
+        elif ab_single:
+            plt.plot(r2, g2, marker='.', color='red')
+        elif ab_inf:
+            plt.plot(r2, g2, marker='.', color='blue')
+        else:
+            plt.plot(r2, g2, marker='.', color='yellow')
+    
+    plt.plot(r, g, marker='o', color='black')
+    plt.title(f"d={d}; n={n}; k={k}")
+
+
 # Plots a map of whether or not greedy is optimal
-# TODO: check strong condition instead
 def plot_greedy_map(r, g):
-    d = 3; n = 6; k = 2
     duv = DUV(d, n, k)
     duv.distribution[0][0] = r
     duv.distribution[0][1] = g
@@ -329,24 +375,6 @@ def plot_greedy_map(r, g):
         # else:
         #     plt.plot(r2, g2, marker='.', color='green')
 
-        # ab = duv.weak_condition_asymmetric()
-        # ba = duv.weak_condition_asymmetric(True)
-
-        # if ab and ba:
-        #     plt.plot(r2, g2, marker='.', color='purple')
-        # elif ab:
-        #     plt.plot(r2, g2, marker='.', color='red')
-        # elif ba:
-        #     plt.plot(r2, g2, marker='.', color='blue')
-        # else:
-        #     plt.plot(r2, g2, marker='.', color='yellow')
-
-        # Condition map
-        # if duv.weak_condition_symmetric():
-        #     plt.plot(r2, g2, marker='.', color='green')
-        # else:
-        #     plt.plot(r2, g2, marker='.', color='red')
-
         # Greedy optimal map
         if duv.greedy_cost > duv.EOPT:
             plt.plot(r2, g2, marker='.', color='red')
@@ -361,9 +389,10 @@ GENERATION_COUNT = 100
 DNK = (3, 8, 2)
 if __name__ == '__main__':
 
-    r = 1/4
-    g = 1/5
-    plot_greedy_map(r, g)
+    r = 2/3
+    g = 1/3
+    plot_condition_map(r, g)
+    # plot_greedy_map(r, g)
     plt.show()
     sys.exit(0)
 
