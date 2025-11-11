@@ -5,6 +5,7 @@
 import numpy as np
 import itertools as it
 import functools as ft
+import matplotlib.pyplot as plt
 import copy
 import sys
 
@@ -136,7 +137,7 @@ class DUV:
                 for c in range(self.d):
                     this_test_score += current_prs[c] * self.distribution[j][c]
                 
-                if this_test_score < best_score:
+                if this_test_score <= best_score:
                     best_score = this_test_score
                     best_test = j
             
@@ -155,7 +156,7 @@ class DUV:
             starts_with_j = self.generate_greedy_with_first_test(j)
             starts_with_j_cost = self.expected_cost(starts_with_j)
 
-            if starts_with_j_cost < self.greedy_cost:
+            if starts_with_j_cost <= self.greedy_cost:
                 self.greedy_cost = starts_with_j_cost
                 self.greedy = copy.deepcopy(starts_with_j)
     
@@ -372,13 +373,34 @@ class DUV:
                     greedy_choice = j
 
             if greedy_choice != self.OPT[k] and k != 0:
-                self.OPT_non_greedy_indexes.append(k)
+                self.OPT_non_greedy_indexes.append((k, greedy_choice))
             
             available[self.OPT[k]] = False
             for c in range(self.d):
                 bias[c] *= self.distribution[self.OPT[k]][c]
         
         self.OPT_non_greedy_count = len(self.OPT_non_greedy_indexes)
+    
+    def plot_dice(self):
+        if self.d != 3: return
+
+        fig, ax = plt.subplots()
+        plt.xlim(0, 1)
+        plt.ylim(0, 1)
+        for die in self.distribution: 
+            ax.plot(die[0], die[1], marker='o')
+        for k in range(self.n - 1):
+            die = self.distribution[self.OPT[k]]
+            next_die = self.distribution[self.OPT[k + 1]]
+            ax.annotate(
+                "",
+                xytext=(die[0], die[1]),
+                xy=(next_die[0], next_die[1]),
+                arrowprops=dict(arrowstyle="->")
+            )
+        
+        plt.show()
+
 
 GENERATION_SIZE = 1_000_000
 GENERATION_COUNT = 10
@@ -387,29 +409,10 @@ if __name__ == '__main__':
     i = 1
     max_diff = -1
     max_diff_instance = None
-
-    for _ in range(1_000_000):
-        duv = DUV(*DN)
-        duv.init_distribution()
-
-        duv.generate_OPT()
-        duv.OPT_non_greedy()
-
-        diff = duv.OPT_non_greedy_count
-        if diff > max_diff:
-            max_diff = diff
-            max_diff_instance = copy.deepcopy(duv)
-
-        if i % 1000 == 0:
-            print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
-        
-        i += 1
-    
-    for _ in range(GENERATION_COUNT):
-        current_parent = copy.deepcopy(max_diff_instance)
-        for __ in range(GENERATION_SIZE):
+    try:
+        for _ in range(1_000_000):
             duv = DUV(*DN)
-            duv.init_child_distribution(current_parent.distribution)
+            duv.init_distribution()
 
             duv.generate_OPT()
             duv.OPT_non_greedy()
@@ -419,14 +422,41 @@ if __name__ == '__main__':
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
-            if i % GENERATION_SIZE == 0:
-                print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+            if i % 1000 == 0:
+                print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
             
             i += 1
+        
+        for _ in range(GENERATION_COUNT):
+            current_parent = copy.deepcopy(max_diff_instance)
+            for __ in range(GENERATION_SIZE):
+                duv = DUV(*DN)
+                duv.init_child_distribution(current_parent.distribution)
 
-    print()
-    print(f"Count: {max_diff}"); print()
-    max_diff_instance.print_OPT(); print()
-    print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
-    max_diff_instance.generate_greedy()
-    max_diff_instance.print_greedy()
+                duv.generate_OPT()
+                duv.OPT_non_greedy()
+
+                diff = duv.OPT_non_greedy_count
+                if diff > max_diff:
+                    max_diff = diff
+                    max_diff_instance = copy.deepcopy(duv)
+
+                if i % GENERATION_SIZE == 0:
+                    print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+                
+                i += 1
+
+        print()
+        print(f"Count: {max_diff}"); print()
+        max_diff_instance.print_OPT(); print()
+        print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
+        max_diff_instance.generate_greedy()
+        max_diff_instance.print_greedy()
+    except KeyboardInterrupt:
+        print("Interrupted."); print()
+        print(f"Count: {max_diff}"); print()
+        max_diff_instance.print_OPT(); print()
+        print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
+        max_diff_instance.generate_greedy()
+        max_diff_instance.print_greedy()
+        max_diff_instance.plot_dice()
