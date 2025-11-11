@@ -8,8 +8,17 @@ import functools as ft
 import copy
 import sys
 import matplotlib.pyplot as plt
+import math
+
+DUV_float = float
 
 N = 100
+
+# https://stackoverflow.com/questions/60639740/algorithm-to-iterate-through-fixed-size-positive-integer-lists-with-the-same-sum/60653381#60653381
+def partition(N, size):
+    n = N + size - 1
+    for splits in it.combinations(range(n), size - 1):
+        yield [s1 - s0 - 1 for s0, s1 in zip((-1,) + splits, splits + (n,))]
 
 def point_grad(r1, g1, r2, g2):
     # die 1 is the greedier choice
@@ -94,6 +103,67 @@ class DUV:
                 self.OPT = copy.deepcopy(strategy)
         
         self.EOPT = cost_to_beat
+
+    # DP approach:
+    # Supposing that, prior to position m, we did A rolls of die 1, B rolls of die 2, ...
+    # And after position m, we will use sub-permutation, e.g., (2, 1, 2, 4)
+    # What die goes in position m?
+    def generate_OPT(self):
+        # Number of possible prior dice counts, needed for table dimensions
+        prior_dice_choices_count = math.comb(self.n + self.k - 1, self.k - 1)
+        best_die_table = np.empty(
+            shape=(prior_dice_choices_count, self.n),
+            dtype=int
+        )
+
+        # sums_to[S][M] = Mth array of k integers summing to S
+        sums_to = np.full(
+            shape=(self.n + 1, prior_dice_choices_count, self.k),
+            dtype=int,
+            fill_value=-1
+        )
+
+        # Filling in the sums_to table
+        sums_to[0][0][:] = 0 # All dice counts = 0, sums to 0
+        prev_sum_count = 1 # In the following loop, this is the number of ways to sum to S - 1
+        for S in range(1, self.n + 1):
+            i = 0 # Index for current table
+            print(prev_sum_count)
+            # We can produce the next sets of integers summing to S
+            # by adding 1 to each integer for each previous set
+            for j in range(prev_sum_count): # Index for previous table
+                for l in range(self.k): # Which integer are we adding 1 to?
+                    sums_to[S][i][l] = sums_to[S][j][l] + 1
+                i += 1
+
+            # prev_sum_count *= self.n + self.
+
+        print(sums_to[self.n])
+
+        # post_bias[j] = bias from dice strictly after j
+        post_bias = np.ones(
+            shape=(prior_dice_choices_count, self.n, self.d),
+            dtype=DUV_float
+        )
+        # pre_bias[j] = bias from dice strictly before j
+        pre_bias = np.ones(
+            shape=(prior_dice_choices_count, self.n, self.d),
+            dtype=DUV_float
+        )
+
+        # DP approach only works if we go backwards
+        for m in range(self.n - 1, -1, -1):
+            die_counts_index = 0
+            die_counts = np.zeros(shape=(self.k,), dtype=int) # must sum to m
+            die_counts[0] = m
+
+            for part in partition(m, self.k):
+                for j in range(self.distribution):
+                    for c in range(self.d):
+                        post_bias[die_counts_index][m][c] = self.distribution[j][c] ** part[j]
+
+
+
 
     def generate_greedy_with_first_test(self, first):
         strategy = np.empty(shape=(self.n,), dtype=int)
@@ -313,7 +383,7 @@ class DUV:
     def weak_condition_symmetric(self):
         return self.weak_condition_asymmetric() and self.weak_condition_asymmetric(True)
 
-d = 3; n = 8; k = 2
+d = 3; n = 6; k = 2
 def plot_condition_map(r, g):
     duv = DUV(d, n, k)
     duv.distribution[0][0] = r
@@ -335,14 +405,39 @@ def plot_condition_map(r, g):
         ab_inf = duv.weak_condition_inf()
         ba_inf = duv.weak_condition_inf(True)
 
-        if ab_single and ab_inf:
-            plt.plot(r2, g2, marker='.', color='purple')
-        elif ab_single:
-            plt.plot(r2, g2, marker='.', color='red')
-        elif ab_inf:
-            plt.plot(r2, g2, marker='.', color='blue')
-        else:
-            plt.plot(r2, g2, marker='.', color='yellow')
+        marker = '.'
+        if ab_single and ab_inf and ba_single and ba_inf: # T T T T
+            plt.plot(r2, g2, marker=marker, color='purple')
+        elif ab_single and ab_inf and ba_single and not ba_inf: # T T T F
+            plt.plot(r2, g2, marker=marker, color='red')
+        elif ab_single and ab_inf and not ba_single and ba_inf: # T T F T
+            plt.plot(r2, g2, marker=marker, color='blue')
+        elif ab_single and ab_inf and not ba_single and not ba_inf: # T T F F
+            plt.plot(r2, g2, marker=marker, color='green')
+        elif ab_single and not ab_inf and ba_single and ba_inf: # T F T T
+            plt.plot(r2, g2, marker=marker, color='slategray')
+        elif ab_single and not ab_inf and ba_single and not ba_inf: # T F T F
+            plt.plot(r2, g2, marker=marker, color='cyan')
+        elif ab_single and not ab_inf and not ba_single and ba_inf: # T F F T
+            plt.plot(r2, g2, marker=marker, color='salmon')
+        elif ab_single and not ab_inf and not ba_single and not ba_inf: # T F F F
+            plt.plot(r2, g2, marker=marker, color='darkgreen')
+        elif not ab_single and ab_inf and ba_single and ba_inf: # F T T T
+            plt.plot(r2, g2, marker=marker, color='navy')
+        elif not ab_single and ab_inf and ba_single and not ba_inf: # F T T F
+            plt.plot(r2, g2, marker=marker, color='thistle')
+        elif not ab_single and ab_inf and not ba_single and ba_inf: # F T F T
+            plt.plot(r2, g2, marker=marker, color='peachpuff')
+        elif not ab_single and ab_inf and not ba_single and not ba_inf: # F T F F
+            plt.plot(r2, g2, marker=marker, color='brown')
+        elif not ab_single and not ab_inf and ba_single and ba_inf: # F F T T
+            plt.plot(r2, g2, marker=marker, color='black')
+        elif not ab_single and not ab_inf and ba_single and not ba_inf: # F F T F
+            plt.plot(r2, g2, marker=marker, color='skyblue')
+        elif not ab_single and not ab_inf and not ba_single and ba_inf: # F F F T
+            plt.plot(r2, g2, marker=marker, color='orchid')
+        elif not ab_single and not ab_inf and not ba_single and not ba_inf: # F F F F
+            plt.plot(r2, g2, marker=marker, color='yellow')
     
     plt.plot(r, g, marker='o', color='black')
     plt.title(f"d={d}; n={n}; k={k}")
@@ -384,15 +479,65 @@ def plot_greedy_map(r, g):
     plt.plot(r, g, marker='o', color='black')
     plt.title(f"d={d}; n={n}; k={k}")
 
+def plot_level_lines(r, g, m):
+    duv = DUV(d, n, k)
+    duv.distribution[0][0] = r
+    duv.distribution[0][1] = g
+    duv.distribution[0][2] = 1.0 - r - g
+
+    
+    for i, j in it.product(range(750), repeat=2):
+        if i + j > N: continue
+        r2 = i / N
+        g2 = j / N
+
+        duv.distribution[1][0] = r2
+        duv.distribution[1][1] = g2
+        duv.distribution[1][2] = 1.0 - r2 - g2
+
+        b = 1.0 - r - g
+        b2 = 1.0 - r2 - g2
+
+        partial_sum = [1, 1, 1]
+        for i in range(m):
+            partial_sum[0] += (r ** (i + 1))
+            partial_sum[1] += (g ** (i + 1))
+            partial_sum[2] += (b ** (i + 1))
+
+        def greediness(r, g):
+            b = 1.0 - r - g
+            return partial_sum[0] * r + partial_sum[1] * g + partial_sum[2] * b
+
+        baseline = greediness(r, g)
+        if baseline - 0.005 <= greediness(r2, g2) <= baseline + 0.005:
+            plt.plot(r2, g2, marker='.', color='black')
+        else:
+            pass
+            # plt.plot(r2, g2, marker='.', color='lightgray')
+
+        # # Greedy optimal map
+        # if len(np.unique(duv.OPT)) == 1 and duv.OPT[0] == 0:
+        #     plt.plot(r2, g2, marker='.', color='green')
+        # else:
+        #     plt.plot(r2, g2, marker='.', color='green')
+    
+    plt.plot(r, g, marker='o', color='blue')
+    plt.title(f"level line; partial sum m = {m}")
+
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100
 DNK = (3, 8, 2)
 if __name__ == '__main__':
+    duv = DUV(3, 4, 3)
+    duv.generate_OPT()
+    sys.exit(0)
 
-    r = 2/3
+    r = 1.7/3
     g = 1/3
-    plot_condition_map(r, g)
-    # plot_greedy_map(r, g)
+    # plot_condition_map(r, g)
+    plot_greedy_map(r, g)
+    # plot_level_lines(r, g, 100)
+    # plot_level_lines(r, g, 1)
     plt.show()
     sys.exit(0)
 

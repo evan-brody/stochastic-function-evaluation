@@ -348,24 +348,54 @@ class DUV:
             self.distribution[j] = copy.deepcopy(new_die)
         
         return self.distribution
+    
+    def OPT_non_greedy(self):
+        available = np.array([True] * self.n)
+        self.OPT_non_greedy_indexes = []
+        
+        bias = np.array([1.0] * self.d)
+        for k in range(self.n):
+            greedy_choice = None
+            for j in range(self.n):
+                if available[j]:
+                    greedy_choice = j
+                    break
+            min_score = float('inf')
 
+            for j in [ j for j in range(self.n) if available[j] ]:
+                this_test_score = 0
+                for c in range(self.d):
+                    this_test_score += bias[c] * self.distribution[j][c]
+                
+                if this_test_score < min_score:
+                    min_score = this_test_score
+                    greedy_choice = j
 
-GENERATION_SIZE = 10_000
-GENERATION_COUNT = 1000
+            if greedy_choice != self.OPT[k] and k != 0:
+                self.OPT_non_greedy_indexes.append(k)
+            
+            available[self.OPT[k]] = False
+            for c in range(self.d):
+                bias[c] *= self.distribution[self.OPT[k]][c]
+        
+        self.OPT_non_greedy_count = len(self.OPT_non_greedy_indexes)
+
+GENERATION_SIZE = 100
+GENERATION_COUNT = 10
 DN = (3, 6)
 if __name__ == '__main__':
     i = 1
-    max_diff = 0
+    max_diff = -1
     max_diff_instance = None
 
-    for _ in range(1_000_000):
+    for _ in range(10):
         duv = DUV(*DN)
         duv.init_distribution()
 
         duv.generate_OPT()
-        duv.generate_simple_greedy()
+        duv.OPT_non_greedy()
 
-        diff = duv.simple_greedy_cost - duv.EOPT
+        diff = duv.OPT_non_greedy_count
         if diff > max_diff:
             max_diff = diff
             max_diff_instance = copy.deepcopy(duv)
@@ -382,10 +412,9 @@ if __name__ == '__main__':
             duv.init_child_distribution(current_parent.distribution)
 
             duv.generate_OPT()
-            duv.generate_simple_greedy()
+            duv.OPT_non_greedy()
 
-            diff = duv.simple_greedy_cost - duv.EOPT
-
+            diff = duv.OPT_non_greedy_count
             if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
@@ -397,4 +426,3 @@ if __name__ == '__main__':
 
     print(max_diff); print()
     max_diff_instance.print_OPT(); print()
-    max_diff_instance.print_simple_greedy(); print()
