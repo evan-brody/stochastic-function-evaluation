@@ -380,15 +380,15 @@ class DUV:
         
         self.OPT_non_greedy_count = len(self.OPT_non_greedy_indexes)
 
-GENERATION_SIZE = 100
+GENERATION_SIZE = 100_000
 GENERATION_COUNT = 10
-DN = (3, 6)
+DN = (3, 8)
 if __name__ == '__main__':
     i = 1
     max_diff = -1
     max_diff_instance = None
 
-    for _ in range(10):
+    for _ in range(1_000_000):
         duv = DUV(*DN)
         duv.init_distribution()
 
