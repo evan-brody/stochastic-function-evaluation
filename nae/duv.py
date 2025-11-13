@@ -453,6 +453,7 @@ if __name__ == '__main__':
         print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
         max_diff_instance.generate_greedy()
         max_diff_instance.print_greedy()
+        max_diff_instance.plot_dice()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(max_diff_instance.distribution)
