@@ -402,7 +402,7 @@ class DUV:
         plt.show()
 
 
-GENERATION_SIZE = 1_000_000
+GENERATION_SIZE = 100_000
 GENERATION_COUNT = 10
 DN = (3, 8)
 if __name__ == '__main__':
@@ -418,7 +418,7 @@ if __name__ == '__main__':
             duv.OPT_non_greedy()
 
             diff = duv.OPT_non_greedy_count
-            if diff > max_diff:
+            if diff >= max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
@@ -437,16 +437,17 @@ if __name__ == '__main__':
                 duv.OPT_non_greedy()
 
                 diff = duv.OPT_non_greedy_count
-                if diff > max_diff:
+                if diff >= max_diff: # should remove >= when not testing number of non-greedy choices
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(duv)
 
-                if i % GENERATION_SIZE == 0:
+                if i % 1000 == 0:
                     print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
                 
                 i += 1
 
         print()
+        print(max_diff_instance.distribution)
         print(f"Count: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
         print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
@@ -454,6 +455,7 @@ if __name__ == '__main__':
         max_diff_instance.print_greedy()
     except KeyboardInterrupt:
         print("Interrupted."); print()
+        print(max_diff_instance.distribution)
         print(f"Count: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
         print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
