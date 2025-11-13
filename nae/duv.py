@@ -8,6 +8,7 @@ import functools as ft
 import matplotlib.pyplot as plt
 import copy
 import sys
+import math
 
 class DUV:
     def __init__(self, d, n):
@@ -401,13 +402,24 @@ class DUV:
         
         plt.show()
 
+    def similarity(self):
+        score = 0.0
+        for die_one, die_two in it.combinations(self.distribution, 2):
+            length_one = math.sqrt(sum([ p ** 2 for p in die_one ]))
+            length_two = math.sqrt(sum([ p ** 2 for p in die_two ]))
 
-GENERATION_SIZE = 100_000
-GENERATION_COUNT = 10
+            score += sum([ die_one[c] * die_two[c] for c in range(self.d) ]) / (length_one * length_two)
+        
+        return score
+
+
+GENERATION_SIZE = 10_000
+GENERATION_COUNT = 1000
 DN = (3, 8)
 if __name__ == '__main__':
     i = 1
     max_diff = -1
+    max_similarity = -1
     max_diff_instance = None
     try:
         for _ in range(1_000_000):
@@ -418,7 +430,8 @@ if __name__ == '__main__':
             duv.OPT_non_greedy()
 
             diff = duv.OPT_non_greedy_count
-            if diff >= max_diff:
+            similarity = duv.similarity()
+            if diff >= max_diff and similarity > max_similarity:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
@@ -437,7 +450,8 @@ if __name__ == '__main__':
                 duv.OPT_non_greedy()
 
                 diff = duv.OPT_non_greedy_count
-                if diff >= max_diff: # should remove >= when not testing number of non-greedy choices
+                similarity = duv.similarity()
+                if diff >= max_diff and similarity > max_similarity:
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(duv)
 
