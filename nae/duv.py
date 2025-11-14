@@ -175,13 +175,31 @@ class DUV:
         
         p = [ c[0] for c in self.distribution ]
 
+        self.greedy_terms = np.zeros(shape=(2, self.n))
+
         if all( pj >= 0.5 for pj in p ):
             self.alt_greedy = np.argsort(p) # increasing heads
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+            
+            self.greedy_terms[0][0] = self.distribution[self.alt_greedy[0]][0]
+            self.greedy_terms[1][0] = 1.0 - self.greedy_terms[0][0]
+
+            for k in range(1, self.n - 1): # max is pi(n-1), so 0 index @ n-2
+                self.greedy_terms[0][k] = self.greedy_terms[0][k-1] * self.distribution[self.alt_greedy[k]][0]
+                self.greedy_terms[1][k] = self.greedy_terms[1][k-1] * self.distribution[self.alt_greedy[k]][1]
+
             return
         elif all( pj <= 0.5 for pj in p ): # decreasing heads
             self.alt_greedy = np.argsort(p)[::-1]
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+
+            self.greedy_terms[0][0] = self.distribution[self.alt_greedy[0]][0]
+            self.greedy_terms[1][0] = 1.0 - self.greedy_terms[0][0]
+
+            for k in range(1, self.n - 1): # max is pi(n-1), so 0 index @ n-2
+                self.greedy_terms[0][k] = self.greedy_terms[0][k-1] * self.distribution[self.alt_greedy[k]][0]
+                self.greedy_terms[1][k] = self.greedy_terms[1][k-1] * self.distribution[self.alt_greedy[k]][1]
+            
             return
         
         self.alt_greedy = np.empty(shape=(self.n,), dtype=int)
@@ -202,36 +220,91 @@ class DUV:
             bias[0] *= p[choice]
             bias[1] *= 1.0 - p[choice]
 
+            self.greedy_terms[0][k] = bias[0]
+            self.greedy_terms[1][k] = bias[1]
+
         self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
 
     def print_alt_greedy(self):
         print("Alt Greedy:", [ int(j) for j in self.alt_greedy ])
         print("E[Alt Greedy]:", self.alt_greedy_cost)
+
+        print("Greedy terms:")
+        for heads_term in self.greedy_terms[0]:
+            print(round(heads_term, 3), end=' ')
+        print()
+
+        for tails_term in self.greedy_terms[1]:
+            print(round(tails_term, 3), end=' ')
+        print()
+
         for c in range(self.d):
             for j in self.alt_greedy:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
     
     def adapt_OPT_ecost(self):
-        costs = []
+        self.AOPT_terms = np.empty(shape=(2,self.n - 1), dtype=float)
+        self.AOPT = float('inf')
+
         for first_test in range(self.n):
             p = [ c[0] for c in self.distribution ]
-            del p[first_test]
+            # del p[first_test] # TESTING!!!
             p.sort()
 
-            cost = 2.0
+            these_terms = np.zeros(shape=(2,self.n - 1), dtype=float)
+
             heads_term = self.distribution[first_test][0] * p[0]
             tails_term = (1.0 - self.distribution[first_test][0]) * (1.0 - p[self.n - 2])
-            cost += heads_term + tails_term
+
+            these_terms[0][0] = heads_term
+            these_terms[1][0] = tails_term
 
             for j in range(1, self.n - 1):
                 heads_term *= p[j]
                 tails_term *= 1.0 - p[self.n - 2 - j]
-                cost += heads_term + tails_term
 
-            costs.append(cost)
+                these_terms[0][j] = heads_term
+                these_terms[1][j] = tails_term
+            
+            this_cost = sum(these_terms[0]) + sum(these_terms[1])
+            if this_cost < self.AOPT:
+                self.AOPT = this_cost
+                self.AOPT_terms = copy.deepcopy(these_terms)
+        
+        self.AOPT += 2.0
 
-        self.AOPT = min(costs)
+    def print_AOPT(self):
+        print(f"E[AOPT]: {self.AOPT}")
+        print(f"Terms:")
+        for head_term in self.AOPT_terms[0]:
+            print(round(head_term, 3), end=' ')
+        print()
+        for tails_term in self.AOPT_terms[1]:
+            print(round(tails_term, 3), end=' ')
+        print()
+
+    def one_off_term_diff(self):
+        greedy_index = 2 # start at, say, p1p2pn
+        opt_index = 0 # start at, say, pfp1
+
+        total = 0.0
+        while greedy_index < self.n:
+            greedy_term = max(
+                self.greedy_terms[0][greedy_index],
+                self.greedy_terms[1][greedy_index]
+            )
+            AOPT_term = max(
+                self.AOPT_terms[0][opt_index],
+                self.AOPT_terms[1][opt_index]
+            )
+
+            total += greedy_term - AOPT_term
+
+            greedy_index += 1
+            opt_index += 1
+        
+        self.total_one_off_term_diff = total
 
     def generate_double_greedy_with_first_test(self, first):
         used = np.array([False] * self.n)
@@ -476,10 +549,20 @@ class DUV:
         
         return score
 
+    def diff(self):
+        # discount = 0.0
+        # for k in range(1, self.n):
+        #     discount += min(
+        #         self.greedy_terms[0][k],
+        #         self.greedy_terms[1][k]
+        #     )
+        return self.alt_greedy_cost - self.AOPT
+        # self.one_off_term_diff()
+        # return self.total_one_off_term_diff
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (2, 12)
+DN = (2, 10)
 if __name__ == '__main__':
     i = 1
     max_diff = -1
@@ -493,7 +576,7 @@ if __name__ == '__main__':
             duv.adapt_OPT_ecost()
             duv.generate_alt_greedy()
 
-            diff = duv.alt_greedy_cost - duv.AOPT
+            diff = duv.diff()
             if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
@@ -512,7 +595,7 @@ if __name__ == '__main__':
                 duv.adapt_OPT_ecost()
                 duv.generate_alt_greedy()
 
-                diff = duv.alt_greedy_cost - duv.AOPT
+                diff = duv.diff()
                 if diff > max_diff:
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(duv)
@@ -525,7 +608,7 @@ if __name__ == '__main__':
         print()
         print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        print(f"adapt: {max_diff_instance.AOPT}")
+        max_diff_instance.print_AOPT()
         # max_diff_instance.print_OPT(); print()
         # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
         max_diff_instance.print_alt_greedy()
@@ -534,7 +617,7 @@ if __name__ == '__main__':
         print("Interrupted."); print()
         print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        print(f"adapt: {max_diff_instance.AOPT}")
+        max_diff_instance.print_AOPT()
         # max_diff_instance.print_OPT(); print()
         max_diff_instance.print_alt_greedy()
         # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
