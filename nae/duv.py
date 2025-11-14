@@ -160,12 +160,58 @@ class DUV:
             if starts_with_j_cost <= self.greedy_cost:
                 self.greedy_cost = starts_with_j_cost
                 self.greedy = copy.deepcopy(starts_with_j)
-    
+
     def print_greedy(self):
         print("Greedy:", [ int(j) for j in self.greedy ])
         print("E[Greedy]:", self.greedy_cost)
         for c in range(self.d):
             for j in self.greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+
+    def generate_alt_greedy(self):
+        if self.d != 2:
+            raise Exception
+        
+        p = [ c[0] for c in self.distribution ]
+
+        if all( pj >= 0.5 for pj in p ):
+            self.alt_greedy = np.argsort(p)
+            self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+            return
+        elif all( pj <= 0.5 for pj in p ):
+            self.alt_greedy = np.argsort(p, reversed=True)
+            self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+            return
+        
+        self.alt_greedy = np.empty(shape=(self.n,), dtype=int)
+        bias = np.full(shape=(2,), dtype=float, fill_value=1)
+        headsest_available = 0
+        tailsest_available = self.n - 1
+
+        for k in range(self.n):
+            if bias[0] <= bias[1]: # unbiased, 0-biased
+                self.alt_greedy[k] = headsest_available
+
+                bias[0] *= p[headsest_available]
+                bias[1] *= 1.0 - p[headsest_available]
+
+                headsest_available += 1
+            else:
+                self.alt_greedy[k] = tailsest_available
+
+                bias[0] *= p[tailsest_available]
+                bias[1] *= 1.0 - p[tailsest_available]
+
+                tailsest_available -= 1
+        
+        self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+
+    def print_alt_greedy(self):
+        print("Alt Greedy:", [ int(j) for j in self.alt_greedy ])
+        print("E[Alt Greedy]:", self.alt_greedy_cost)
+        for c in range(self.d):
+            for j in self.alt_greedy:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
 
@@ -427,11 +473,10 @@ if __name__ == '__main__':
             duv.init_distribution()
 
             duv.generate_OPT()
-            duv.OPT_non_greedy()
+            duv.generate_alt_greedy()
 
-            diff = duv.OPT_non_greedy_count
-            similarity = duv.similarity()
-            if diff >= max_diff and similarity > max_similarity:
+            diff = duv.alt_greedy_cost - duv.EOPT
+            if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
 
@@ -447,11 +492,10 @@ if __name__ == '__main__':
                 duv.init_child_distribution(current_parent.distribution)
 
                 duv.generate_OPT()
-                duv.OPT_non_greedy()
+                duv.generate_alt_greedy()
 
-                diff = duv.OPT_non_greedy_count
-                similarity = duv.similarity()
-                if diff >= max_diff and similarity > max_similarity:
+                diff = duv.alt_greedy_cost - duv.EOPT
+                if diff > max_diff:
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(duv)
 
