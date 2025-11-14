@@ -171,42 +171,39 @@ class DUV:
 
     def generate_alt_greedy(self):
         if self.d != 2:
-            raise Exception
+            raise Exception("alt greedy with d != 2")
         
         p = [ c[0] for c in self.distribution ]
 
         if all( pj >= 0.5 for pj in p ):
-            self.alt_greedy = np.argsort(p)
+            self.alt_greedy = np.argsort(p) # increasing heads
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
             return
-        elif all( pj <= 0.5 for pj in p ):
-            self.alt_greedy = np.argsort(p, reversed=True)
+        elif all( pj <= 0.5 for pj in p ): # decreasing heads
+            self.alt_greedy = np.argsort(p)[::-1]
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
             return
         
         self.alt_greedy = np.empty(shape=(self.n,), dtype=int)
-        bias = np.full(shape=(2,), dtype=float, fill_value=1)
+        sorted_indexes = np.argsort(p)[::-1]
+        bias = np.full(shape=(2,), dtype=float, fill_value=1.0)
         headsest_available = 0
         tailsest_available = self.n - 1
 
         for k in range(self.n):
             if bias[0] <= bias[1]: # unbiased, 0-biased
-                self.alt_greedy[k] = headsest_available
-
-                bias[0] *= p[headsest_available]
-                bias[1] *= 1.0 - p[headsest_available]
-
+                choice = sorted_indexes[headsest_available]
                 headsest_available += 1
             else:
-                self.alt_greedy[k] = tailsest_available
-
-                bias[0] *= p[tailsest_available]
-                bias[1] *= 1.0 - p[tailsest_available]
-
+                choice = sorted_indexes[tailsest_available]
                 tailsest_available -= 1
-        
-        self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+            
+            self.alt_greedy[k] = choice
+            bias[0] *= p[choice]
+            bias[1] *= 1.0 - p[choice]
 
+        self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
+    
     def print_alt_greedy(self):
         print("Alt Greedy:", [ int(j) for j in self.alt_greedy ])
         print("E[Alt Greedy]:", self.alt_greedy_cost)
@@ -461,7 +458,7 @@ class DUV:
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (3, 8)
+DN = (2, 8)
 if __name__ == '__main__':
     i = 1
     max_diff = -1
@@ -506,18 +503,19 @@ if __name__ == '__main__':
 
         print()
         print(max_diff_instance.distribution)
-        print(f"Count: {max_diff}"); print()
+        print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
-        print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
-        max_diff_instance.generate_greedy()
-        max_diff_instance.print_greedy()
-        max_diff_instance.plot_dice()
+        # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
+        max_diff_instance.print_alt_greedy()
+        # max_diff_instance.plot_dice()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(max_diff_instance.distribution)
-        print(f"Count: {max_diff}"); print()
+        print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
-        print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
-        max_diff_instance.generate_greedy()
-        max_diff_instance.print_greedy()
-        max_diff_instance.plot_dice()
+        max_diff_instance.print_alt_greedy()
+        # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
+
+        # max_diff_instance.generate_greedy()
+        # max_diff_instance.print_greedy()
+        # max_diff_instance.plot_dice()
