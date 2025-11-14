@@ -409,7 +409,7 @@ class DUV:
                 new_die[c] *= scale_vector[c]
             
             new_die = self.clamp(new_die)
-            # new_die = self.normalize(new_die)
+            new_die = self.normalize(new_die)
 
             self.distribution[j] = copy.deepcopy(new_die)
         
@@ -479,7 +479,7 @@ class DUV:
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (2, 8)
+DN = (2, 12)
 if __name__ == '__main__':
     i = 1
     max_diff = -1
