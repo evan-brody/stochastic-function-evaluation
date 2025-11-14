@@ -203,7 +203,7 @@ class DUV:
             bias[1] *= 1.0 - p[choice]
 
         self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
-    
+
     def print_alt_greedy(self):
         print("Alt Greedy:", [ int(j) for j in self.alt_greedy ])
         print("E[Alt Greedy]:", self.alt_greedy_cost)
@@ -211,6 +211,27 @@ class DUV:
             for j in self.alt_greedy:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
+    
+    def adapt_OPT_ecost(self):
+        costs = []
+        for first_test in range(self.n):
+            p = [ c[0] for c in self.distribution ]
+            del p[first_test]
+            p.sort()
+
+            cost = 2.0
+            heads_term = self.distribution[first_test][0] * p[0]
+            tails_term = (1.0 - self.distribution[first_test][0]) * (1.0 - p[self.n - 2])
+            cost += heads_term + tails_term
+
+            for j in range(1, self.n - 1):
+                heads_term *= p[j]
+                tails_term *= 1.0 - p[self.n - 2 - j]
+                cost += heads_term + tails_term
+
+            costs.append(cost)
+
+        self.AOPT = min(costs)
 
     def generate_double_greedy_with_first_test(self, first):
         used = np.array([False] * self.n)
@@ -465,14 +486,14 @@ if __name__ == '__main__':
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(1_000_000):
+        for _ in range(10_000):
             duv = DUV(*DN)
             duv.init_distribution()
 
-            duv.generate_OPT()
+            duv.adapt_OPT_ecost()
             duv.generate_alt_greedy()
 
-            diff = duv.alt_greedy_cost - duv.EOPT
+            diff = duv.alt_greedy_cost - duv.AOPT
             if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(duv)
@@ -488,10 +509,10 @@ if __name__ == '__main__':
                 duv = DUV(*DN)
                 duv.init_child_distribution(current_parent.distribution)
 
-                duv.generate_OPT()
+                duv.adapt_OPT_ecost()
                 duv.generate_alt_greedy()
 
-                diff = duv.alt_greedy_cost - duv.EOPT
+                diff = duv.alt_greedy_cost - duv.AOPT
                 if diff > max_diff:
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(duv)
@@ -504,7 +525,8 @@ if __name__ == '__main__':
         print()
         print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_OPT(); print()
+        print(f"adapt: {max_diff_instance.AOPT}")
+        # max_diff_instance.print_OPT(); print()
         # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
         max_diff_instance.print_alt_greedy()
         # max_diff_instance.plot_dice()
@@ -512,7 +534,8 @@ if __name__ == '__main__':
         print("Interrupted."); print()
         print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_OPT(); print()
+        print(f"adapt: {max_diff_instance.AOPT}")
+        # max_diff_instance.print_OPT(); print()
         max_diff_instance.print_alt_greedy()
         # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
 
