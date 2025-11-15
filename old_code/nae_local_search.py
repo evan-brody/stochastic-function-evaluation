@@ -1,6 +1,6 @@
 # @file     nae_local_search.py
 # @author   Evan Brody
-# @brief    Tests the local convergence rate of the NAE function.
+# @brief    Tests local search for d-ary Unanimous Vote
 
 import numpy as np
 import matplotlib.pyplot as plt

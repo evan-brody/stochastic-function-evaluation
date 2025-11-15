@@ -1,6 +1,6 @@
 // @file    naeSimulation.cpp
 // @author  Evan Brody
-// @brief   Simulation code for the generalized NAE function
+// @brief   Simulation code for the Finite Coupon Collection Problem
 
 #include <random>
 #include <algorithm>
