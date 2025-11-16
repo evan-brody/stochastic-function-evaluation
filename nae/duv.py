@@ -196,9 +196,10 @@ class DUV:
         self.AOPT_terms = np.empty(shape=(2,self.n - 1), dtype=float)
         self.AOPT = float('inf')
 
+        chosen_first_coin = None
         for first_test in range(self.n):
             p = [ c[0] for c in self.distribution ]
-            # del p[first_test] # TESTING!!!
+            del p[first_test]
             p.sort()
 
             these_terms = np.zeros(shape=(2,self.n - 1), dtype=float)
@@ -218,6 +219,7 @@ class DUV:
             
             this_cost = sum(these_terms[0]) + sum(these_terms[1])
             if this_cost < self.AOPT:
+                chosen_first_coin = first_test
                 self.AOPT = this_cost
                 self.AOPT_terms = copy.deepcopy(these_terms)
         
@@ -329,26 +331,18 @@ class DUV:
         return score
 
     def diff(self):
-        # discount = 0.0
-        # for k in range(1, self.n):
-        #     discount += min(
-        #         self.greedy_terms[0][k],
-        #         self.greedy_terms[1][k]
-        #     )
-        return self.alt_greedy_cost - self.AOPT
-        # self.one_off_term_diff()
-        # return self.total_one_off_term_diff
+        return self.alt_greedy_cost - self.AOPT - self.greedy_terms[0][1] - self.greedy_terms[1][1]
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
 DN = (2, 10)
 if __name__ == '__main__':
     i = 1
-    max_diff = -1
+    max_diff = float('-inf')
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(10_000):
+        for _ in range(100_000):
             duv = DUV(*DN)
             duv.init_distribution()
 
