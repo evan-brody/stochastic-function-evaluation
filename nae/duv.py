@@ -31,6 +31,12 @@ class DUV:
             for i in range(self.d - 1, 0, -1):
                 die[i] -= die[i - 1]
     
+    def print_distribution(self):
+        for die in self.distribution:
+            for side in die:
+                print(round(side, 3), end=' ')
+            print()
+    
     def expected_cost(self, strategy):
         cost = 1
         pr_only_seen = np.array([ p for p in self.distribution[strategy[0]] ])
@@ -331,11 +337,12 @@ class DUV:
         return score
 
     def diff(self):
-        return self.alt_greedy_cost - self.AOPT - self.greedy_terms[0][1] - self.greedy_terms[1][1]
+        return self.greedy_terms[0][3] + self.greedy_terms[1][3] - self.AOPT_terms[0][2] - self.AOPT_terms[1][2]
+        # return self.alt_greedy_cost - self.AOPT - self.greedy_terms[0][1] - self.greedy_terms[1][1]
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (2, 10)
+DN = (2, 5)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -379,13 +386,13 @@ if __name__ == '__main__':
                 i += 1
 
         print()
-        print(max_diff_instance.distribution)
+        max_diff_instance.print_distribution()
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_AOPT()
+        max_diff_instance.print_AOPT(); print()
         max_diff_instance.print_alt_greedy()
     except KeyboardInterrupt:
         print("Interrupted."); print()
-        print(max_diff_instance.distribution)
+        max_diff_instance.print_distribution()
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_AOPT()
+        max_diff_instance.print_AOPT(); print()
         max_diff_instance.print_alt_greedy()
