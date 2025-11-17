@@ -31,6 +31,12 @@ class DUV:
             for i in range(self.d - 1, 0, -1):
                 die[i] -= die[i - 1]
     
+    def good_distribution(self):
+        return not (
+            all( pj <= 0.5 for pj in self.distribution )
+            or all( pj >= 0.5 for pj in self.distribution )
+        )
+
     def expected_cost(self, strategy):
         cost = 1
         pr_only_seen = np.array([ p for p in self.distribution[strategy[0]] ])
