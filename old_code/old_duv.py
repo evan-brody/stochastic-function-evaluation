@@ -1,6 +1,6 @@
 # @file     duv.py
 # @author   Evan Brody
-# @brief    Testbed for d-ary Unanimous Vote
+# @brief    Testbed for d-ary Unanimous Vote (HAS OLD CODE)
 
 import numpy as np
 import itertools as it
@@ -31,21 +31,6 @@ class DUV:
             for i in range(self.d - 1, 0, -1):
                 die[i] -= die[i - 1]
     
-<<<<<<< HEAD
-    def good_distribution(self):
-        return not (
-            all( pj <= 0.5 for pj in self.distribution )
-            or all( pj >= 0.5 for pj in self.distribution )
-        )
-
-=======
-    def print_distribution(self):
-        for die in self.distribution:
-            for side in die:
-                print(round(side, 3), end=' ')
-            print()
-    
->>>>>>> ec5f6f8e789c96c0a3f5f303fdfcc8bf93b711c4
     def expected_cost(self, strategy):
         cost = 1
         pr_only_seen = np.array([ p for p in self.distribution[strategy[0]] ])
@@ -130,7 +115,60 @@ class DUV:
                 self.OPT = copy.deepcopy(strategy)
         
         self.EOPT = cost_to_beat
+
+    def generate_greedy_with_first_test(self, first):
+        used = np.array([False] * self.n)
+        strategy = np.empty(shape=(self.n,), dtype=int)
+
+        strategy[0] = first
+        used[first] = True
+
+        current_prs = np.array([
+            self.distribution[first][c] for c in range(self.d)
+        ])
+
+        for k in range(1, self.n):
+            # print(current_prs)
+            best_score = self.n
+            best_test = None
+            for j in range(self.n):
+                if used[j]: continue
+
+                this_test_score = 0
+                for c in range(self.d):
+                    this_test_score += current_prs[c] * self.distribution[j][c]
+                
+                if this_test_score <= best_score:
+                    best_score = this_test_score
+                    best_test = j
+            
+            strategy[k] = best_test
+            used[best_test] = True
+            for c in range(self.d):
+                current_prs[c] *= self.distribution[best_test][c]
+        
+        return strategy
     
+    def generate_greedy(self):
+        self.greedy = np.empty(shape=(self.n,), dtype=int)
+        self.greedy_cost = self.n
+        
+        for j in range(self.n):
+            starts_with_j = self.generate_greedy_with_first_test(j)
+            starts_with_j_cost = self.expected_cost(starts_with_j)
+
+            if starts_with_j_cost <= self.greedy_cost:
+                self.greedy_cost = starts_with_j_cost
+                self.greedy = copy.deepcopy(starts_with_j)
+
+    def print_greedy(self):
+        print("Greedy:", [ int(j) for j in self.greedy ])
+        print("E[Greedy]:", self.greedy_cost)
+        for c in range(self.d):
+            for j in self.greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+
     def generate_alt_greedy(self):
         if self.d != 2:
             raise Exception("alt greedy with d != 2")
@@ -205,16 +243,13 @@ class DUV:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
     
-    # Finds the expected cost of the optimal adaptive strategy, and the terms in its sum
-    # Only works for d = 2, will update at some point
     def adapt_OPT_ecost(self):
         self.AOPT_terms = np.empty(shape=(2,self.n - 1), dtype=float)
         self.AOPT = float('inf')
 
-        chosen_first_coin = None
         for first_test in range(self.n):
             p = [ c[0] for c in self.distribution ]
-            del p[first_test]
+            # del p[first_test] # TESTING!!!
             p.sort()
 
             these_terms = np.zeros(shape=(2,self.n - 1), dtype=float)
@@ -234,7 +269,6 @@ class DUV:
             
             this_cost = sum(these_terms[0]) + sum(these_terms[1])
             if this_cost < self.AOPT:
-                chosen_first_coin = first_test
                 self.AOPT = this_cost
                 self.AOPT_terms = copy.deepcopy(these_terms)
         
@@ -249,6 +283,176 @@ class DUV:
         for tails_term in self.AOPT_terms[1]:
             print(round(tails_term, 3), end=' ')
         print()
+
+    def one_off_term_diff(self):
+        greedy_index = 2 # start at, say, p1p2pn
+        opt_index = 0 # start at, say, pfp1
+
+        total = 0.0
+        while greedy_index < self.n:
+            greedy_term = max(
+                self.greedy_terms[0][greedy_index],
+                self.greedy_terms[1][greedy_index]
+            )
+            AOPT_term = max(
+                self.AOPT_terms[0][opt_index],
+                self.AOPT_terms[1][opt_index]
+            )
+
+            total += greedy_term - AOPT_term
+
+            greedy_index += 1
+            opt_index += 1
+        
+        self.total_one_off_term_diff = total
+
+    def generate_double_greedy_with_first_test(self, first):
+        used = np.array([False] * self.n)
+        strategy = np.empty(shape=(self.n,), dtype=int)
+
+        strategy[0] = first
+        used[first] = True
+
+        current_prs = np.array([ p for p in self.distribution[first] ])
+
+        for k in range(1, self.n):
+            if k == self.n - 1:
+                for j in it.filterfalse(lambda x: used[x], range(self.n)):
+                    strategy[-1] = j
+            else:
+                best_score = self.n
+                best_pair = (None, None)
+                for i, j in it.product(range(self.n), repeat=2):
+                    if i == j or used[i] or used[j]: continue
+
+                    this_pair_score = 0
+                    for c in range(self.d):
+                        this_pair_score += current_prs[c] * self.distribution[i][c]
+                        this_pair_score += current_prs[c] * self.distribution[i][c] * self.distribution[j][c]
+                    
+                    if this_pair_score < best_score:
+                        best_score = this_pair_score
+                        best_pair = (i, j)
+                
+                strategy[k] = best_pair[0]
+                used[best_pair[0]] = True
+                for c in range(self.d):
+                    current_prs[c] *= self.distribution[best_pair[0]][c]
+        
+        return strategy
+    
+    def generate_double_greedy(self):
+        self.double_greedy = np.empty(shape=(self.n,), dtype=int)
+        self.double_greedy_cost = self.n
+        
+        for j in range(self.n):
+            starts_with_j = self.generate_double_greedy_with_first_test(j)
+            starts_with_j_cost = self.expected_cost(starts_with_j)
+
+            if starts_with_j_cost < self.double_greedy_cost:
+                self.double_greedy_cost = starts_with_j_cost
+                self.double_greedy = copy.deepcopy(starts_with_j)
+
+    def print_double_greedy(self):
+        print("DGreedy:", [ int(j) for j in self.double_greedy ])
+        print("E[DGreedy]:", self.double_greedy_cost)
+        for c in range(self.d):
+            for j in self.double_greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+
+    def generate_middle_greedy_with_bookends(self, first, last):
+        used = np.array([False] * self.n)
+        strategy = np.empty(shape=(self.n,), dtype=int)
+
+        strategy[0] = first
+        strategy[-1] = last
+        used[first] = used[last] = True
+
+        current_prs = np.array([ p for p in self.distribution[first] ])
+
+        for k in range(1, self.n - 1):
+            best_score = self.n
+            best_test = None
+            for j in range(self.n):
+                if used[j]: continue
+
+                this_test_score = 0
+                for c in range(self.d):
+                    this_test_score += current_prs[c] * self.distribution[j][c]
+                
+                if this_test_score < best_score:
+                    best_score = this_test_score
+                    best_test = j
+            
+            strategy[k] = best_test
+            used[best_test] = True
+            for c in range(self.d):
+                current_prs[c] *= self.distribution[best_test][c]
+        
+        return strategy
+
+    def generate_middle_greedy(self):
+        self.middle_greedy = np.empty(shape=(self.n,), dtype=int)
+        self.middle_greedy_cost = self.n
+        
+        for i, j in it.product(range(self.n), repeat=2):
+            if i == j: continue
+            greedy_ij = self.generate_middle_greedy_with_bookends(i, j)
+            greedy_ij_cost = self.expected_cost(greedy_ij)
+
+            if greedy_ij_cost < self.middle_greedy_cost:
+                self.middle_greedy_cost = greedy_ij_cost
+                self.middle_greedy = copy.deepcopy(greedy_ij)
+    
+    def print_middle_greedy(self):
+        print("MGreedy:", [ int(j) for j in self.middle_greedy ])
+        print("E[MGreedy]:", self.middle_greedy_cost)
+        for c in range(self.d):
+            for j in self.middle_greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
+
+    def generate_simple_greedy(self):
+        self.simple_greedy = np.empty(shape=(self.n,), dtype=int)
+
+        used = np.array([False] * self.n)
+
+        context = np.ones(shape=(self.d,), dtype=float)
+
+        k = 0
+        while k < self.n:
+            min_score = self.n
+            best_test = 0
+
+            for j in range(self.n):
+                if used[j]: continue
+
+                this_test_score = 0
+                for c in range(self.d):
+                    this_test_score += context[c] * self.distribution[j][c]
+                
+                if this_test_score < min_score:
+                    min_score = this_test_score
+                    best_test = j
+            
+            self.simple_greedy[k] = best_test
+            used[best_test] = True
+
+            for c in range(self.d):
+                context[c] *= self.distribution[best_test][c]
+
+            k += 1
+        
+        self.simple_greedy_cost = self.expected_cost(self.simple_greedy)
+
+    def print_simple_greedy(self):
+        print("SGreedy:", [ int(j) for j in self.simple_greedy ])
+        print("E[SGreedy]:", self.simple_greedy_cost)
+        for c in range(self.d):
+            for j in self.simple_greedy:
+                print(round(self.distribution[j][c], 3), end='\t')
+            print()
 
     def get_scale_vector(self):
         scale_vector = np.ones(shape=(self.d,), dtype=float)
@@ -346,19 +550,26 @@ class DUV:
         return score
 
     def diff(self):
-        return self.greedy_terms[0][3] + self.greedy_terms[1][3] - self.AOPT_terms[0][2] - self.AOPT_terms[1][2]
-        # return self.alt_greedy_cost - self.AOPT - self.greedy_terms[0][1] - self.greedy_terms[1][1]
+        # discount = 0.0
+        # for k in range(1, self.n):
+        #     discount += min(
+        #         self.greedy_terms[0][k],
+        #         self.greedy_terms[1][k]
+        #     )
+        return self.alt_greedy_cost - self.AOPT
+        # self.one_off_term_diff()
+        # return self.total_one_off_term_diff
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (2, 5)
+DN = (2, 10)
 if __name__ == '__main__':
     i = 1
-    max_diff = float('-inf')
+    max_diff = -1
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(100_000):
+        for _ in range(10_000):
             duv = DUV(*DN)
             duv.init_distribution()
 
@@ -395,13 +606,22 @@ if __name__ == '__main__':
                 i += 1
 
         print()
-        max_diff_instance.print_distribution()
+        print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_AOPT(); print()
+        max_diff_instance.print_AOPT()
+        # max_diff_instance.print_OPT(); print()
+        # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
         max_diff_instance.print_alt_greedy()
+        # max_diff_instance.plot_dice()
     except KeyboardInterrupt:
         print("Interrupted."); print()
-        max_diff_instance.print_distribution()
+        print(max_diff_instance.distribution)
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_AOPT(); print()
+        max_diff_instance.print_AOPT()
+        # max_diff_instance.print_OPT(); print()
         max_diff_instance.print_alt_greedy()
+        # print(f"Indexes: {max_diff_instance.OPT_non_greedy_indexes}"); print()
+
+        # max_diff_instance.generate_greedy()
+        # max_diff_instance.print_greedy()
+        # max_diff_instance.plot_dice()
