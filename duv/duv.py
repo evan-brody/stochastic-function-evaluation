@@ -31,21 +31,18 @@ class DUV:
             for i in range(self.d - 1, 0, -1):
                 die[i] -= die[i - 1]
     
-<<<<<<< HEAD
     def good_distribution(self):
         return not (
-            all( pj <= 0.5 for pj in self.distribution )
-            or all( pj >= 0.5 for pj in self.distribution )
+            all( c[0] <= 0.5 for c in self.distribution )
+            or all( c[0] >= 0.5 for c in self.distribution )
         )
-
-=======
+    
     def print_distribution(self):
         for die in self.distribution:
             for side in die:
-                print(round(side, 3), end=' ')
+                print(round(side, 4), end=' ')
             print()
-    
->>>>>>> ec5f6f8e789c96c0a3f5f303fdfcc8bf93b711c4
+
     def expected_cost(self, strategy):
         cost = 1
         pr_only_seen = np.array([ p for p in self.distribution[strategy[0]] ])
@@ -137,16 +134,13 @@ class DUV:
         
         p = [ c[0] for c in self.distribution ]
 
-        self.greedy_terms = np.zeros(shape=(2, self.n))
+        self.greedy_terms = np.zeros(shape=(2, self.n - 1))
 
         if all( pj >= 0.5 for pj in p ):
             self.alt_greedy = np.argsort(p) # increasing heads
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
-            
-            self.greedy_terms[0][0] = self.distribution[self.alt_greedy[0]][0]
-            self.greedy_terms[1][0] = 1.0 - self.greedy_terms[0][0]
 
-            for k in range(1, self.n - 1): # max is pi(n-1), so 0 index @ n-2
+            for k in range(self.n):
                 self.greedy_terms[0][k] = self.greedy_terms[0][k-1] * self.distribution[self.alt_greedy[k]][0]
                 self.greedy_terms[1][k] = self.greedy_terms[1][k-1] * self.distribution[self.alt_greedy[k]][1]
 
@@ -155,10 +149,7 @@ class DUV:
             self.alt_greedy = np.argsort(p)[::-1]
             self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
 
-            self.greedy_terms[0][0] = self.distribution[self.alt_greedy[0]][0]
-            self.greedy_terms[1][0] = 1.0 - self.greedy_terms[0][0]
-
-            for k in range(1, self.n - 1): # max is pi(n-1), so 0 index @ n-2
+            for k in range(self.n):
                 self.greedy_terms[0][k] = self.greedy_terms[0][k-1] * self.distribution[self.alt_greedy[k]][0]
                 self.greedy_terms[1][k] = self.greedy_terms[1][k-1] * self.distribution[self.alt_greedy[k]][1]
             
@@ -170,7 +161,14 @@ class DUV:
         headsest_available = 0
         tailsest_available = self.n - 1
 
-        for k in range(self.n):
+        choice = sorted_indexes[headsest_available]
+        headsest_available += 1
+
+        self.alt_greedy[0] = choice
+        bias[0] *= p[choice]
+        bias[1] *= 1.0 - p[choice]
+
+        for k in range(1, self.n):
             if bias[0] <= bias[1]: # unbiased, 0-biased
                 choice = sorted_indexes[headsest_available]
                 headsest_available += 1
@@ -182,8 +180,8 @@ class DUV:
             bias[0] *= p[choice]
             bias[1] *= 1.0 - p[choice]
 
-            self.greedy_terms[0][k] = bias[0]
-            self.greedy_terms[1][k] = bias[1]
+            self.greedy_terms[0][k - 1] = bias[0]
+            self.greedy_terms[1][k - 1] = bias[1]
 
         self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
 
@@ -346,12 +344,16 @@ class DUV:
         return score
 
     def diff(self):
-        return self.greedy_terms[0][3] + self.greedy_terms[1][3] - self.AOPT_terms[0][2] - self.AOPT_terms[1][2]
-        # return self.alt_greedy_cost - self.AOPT - self.greedy_terms[0][1] - self.greedy_terms[1][1]
+        return sum([
+            self.greedy_terms[0][j] + self.greedy_terms[1][j]
+            - self.AOPT_terms[0][j] - self.AOPT_terms[1][j]
+            for j in range(1, self.n - 1)
+        ])
+
 
 GENERATION_SIZE = 10_000
 GENERATION_COUNT = 1000
-DN = (2, 5)
+DN = (2, 10)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -361,6 +363,9 @@ if __name__ == '__main__':
         for _ in range(100_000):
             duv = DUV(*DN)
             duv.init_distribution()
+
+            if not duv.good_distribution():
+                continue
 
             duv.adapt_OPT_ecost()
             duv.generate_alt_greedy()
@@ -380,6 +385,9 @@ if __name__ == '__main__':
             for __ in range(GENERATION_SIZE):
                 duv = DUV(*DN)
                 duv.init_child_distribution(current_parent.distribution)
+
+                if not duv.good_distribution():
+                    continue
 
                 duv.adapt_OPT_ecost()
                 duv.generate_alt_greedy()
