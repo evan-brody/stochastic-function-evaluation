@@ -1,3 +1,7 @@
+# @file     fccp.py
+# @author   Evan Brody
+# @brief    Testbed for the Finite Coupon Collection Problem
+
 import numpy as np
 import itertools as it
 import copy
