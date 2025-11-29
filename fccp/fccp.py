@@ -80,7 +80,7 @@ class FCCP:
         max_first_color = 0
         first_color_to_beat = self.distribution[0][0]
         for j in range(1, self.n):
-            if self.distribution[j][0] < first_color_to_beat:
+            if self.distribution[j][0] > first_color_to_beat:
                 first_color_to_beat = self.distribution[j][0]
                 max_first_color = j
         
