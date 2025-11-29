@@ -159,17 +159,17 @@ class FCCP:
         return self.simple_greedy_cost - self.EOPT
             
 
-GENERATION_SIZE = 10_000
-GENERATION_COUNT = 1000
+GENERATION_SIZE = 100
+GENERATION_COUNT = 10_000
 PRINT_PER = 100
-DN = (3, 5)
+DN = (3, 6)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(100_000):
+        for _ in range(10_000):
             fccp = FCCP(*DN)
             fccp.init_distribution()
 
