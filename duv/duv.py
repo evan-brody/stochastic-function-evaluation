@@ -191,6 +191,16 @@ class DUV:
         self.greedy_terms = np.empty(shape=(self.d, self.n - 1), dtype=float)
 
         k = 0
+
+        # fixed first test
+        for c in range(self.d):
+            biases[c] *= self.distribution[self.AOPT_first_die][c]
+            self.greedy_terms[c][0] = biases[c]
+        self.greedy[0] = self.AOPT_first_die
+        self.greedy_cost += sum(biases)
+        k += 1
+        available[self.AOPT_first_die] = False
+
         while k < self.n - 1:
             if np.all(biases == biases[0]): # unbiased
                 # find best pair
