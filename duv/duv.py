@@ -396,14 +396,12 @@ class DUV:
         return score
 
     def diff(self):
-        if self.greedy_cost < 2.5:
-            return -self.greedy_cost
-        else:
-            return max([ sum(self.greedy_terms[:,k]) / sum(self.AOPT_terms[:,k - 1]) for k in range(1, self.n - 1) ])
+        return self.greedy_cost - self.AOPT
 
 GENERATION_SIZE = 100
 GENERATION_COUNT = 100_000
-DN = (3, 8)
+DN = (2, 7)
+CAP = sum([ 0.5 ** n for n in range(2, DN[1]) ])
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -423,7 +421,7 @@ if __name__ == '__main__':
                 max_diff_instance = copy.deepcopy(duv)
 
             if i % 1000 == 0:
-                print(f"-------------[{i} -> {round(max_diff,5)}]-------------")
+                print(f"-------------[{i} -> {round(max_diff, 5)}]------------- ≤ {CAP}")
             
             i += 1
         
@@ -442,7 +440,7 @@ if __name__ == '__main__':
                     max_diff_instance = copy.deepcopy(duv)
 
                 if i % 1000 == 0:
-                    print(f"-------------[gen {_}, {i} -> {round(max_diff,5)}]-------------")
+                    print(f"-------------[gen {_}, {i} -> {round(max_diff, 5)}]------------- ≤ {CAP}")
                 
                 i += 1
 
