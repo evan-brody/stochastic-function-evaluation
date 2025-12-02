@@ -193,13 +193,13 @@ class DUV:
         k = 0
 
         # fixed first test
-        for c in range(self.d):
-            biases[c] *= self.distribution[self.AOPT_first_die][c]
-            self.greedy_terms[c][0] = biases[c]
-        self.greedy[0] = self.AOPT_first_die
-        self.greedy_cost += sum(biases)
-        k += 1
-        available[self.AOPT_first_die] = False
+        # for c in range(self.d):
+        #     biases[c] *= self.distribution[self.AOPT_first_die][c]
+        #     self.greedy_terms[c][0] = biases[c]
+        # self.greedy[0] = self.AOPT_first_die
+        # self.greedy_cost += sum(biases)
+        # k += 1
+        # available[self.AOPT_first_die] = False
 
         while k < self.n - 1:
             if np.all(biases == biases[0]): # unbiased
@@ -396,7 +396,10 @@ class DUV:
         return score
 
     def diff(self):
-        return self.greedy_cost - self.AOPT
+        if self.greedy_cost < 2.5:
+            return -self.greedy_cost
+        else:
+            return max([ sum(self.greedy_terms[:,k]) / sum(self.AOPT_terms[:,k - 1]) for k in range(1, self.n - 1) ])
 
 GENERATION_SIZE = 100
 GENERATION_COUNT = 100_000
