@@ -5,9 +5,7 @@
 import numpy as np
 import itertools as it
 import functools as ft
-import matplotlib.pyplot as plt
 import copy
-import sys
 import math
 
 class DUV:
@@ -185,68 +183,132 @@ class DUV:
 
         self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
 
-    def print_alt_greedy(self):
-        print("Alt Greedy:", [ int(j) for j in self.alt_greedy ])
-        print("E[Alt Greedy]:", self.alt_greedy_cost)
+    def generate_greedy(self):
+        biases = np.ones(shape=(self.d,), dtype=float)
+        available = [True] * self.n
+        self.greedy = np.empty(shape=(self.n,), dtype=int)
+        self.greedy_cost = 1.0
+        self.greedy_terms = np.empty(shape=(self.d, self.n - 1), dtype=float)
 
+        k = 0
+        while k < self.n - 1:
+            if np.all(biases == biases[0]): # unbiased
+                # find best pair
+                best_pair = (None, None)
+                min_score = float('inf')
+                unordered_pairs = list(it.combinations(range(self.n), 2))
+                for i, j in unordered_pairs:
+                    if not (available[i] and available[j]):
+                        continue
+
+                    this_pair_score = np.dot(self.distribution[i], self.distribution[j])
+                    if this_pair_score < min_score:
+                        min_score = this_pair_score
+                        best_pair = (i, j)
+                
+                # update biases
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_pair[0]][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_pair[0]
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_pair[1]][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_pair[1]
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                # update availability
+                available[best_pair[0]] = available[best_pair[1]] = False
+            else:
+                best_test = None
+                min_score = float('inf')
+                for j in range(self.n):
+                    if not available[j]:
+                        continue
+
+                    this_test_score = np.dot(biases, self.distribution[j])
+                    if this_test_score < min_score:
+                        min_score = this_test_score
+                        best_test = j
+
+                # update biases
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_test][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_test
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                # update availability
+                available[best_test] = False
+        
+        for j in range(self.n):
+            if available[j]:
+                self.greedy[self.n - 1] = j
+                break
+    
+    def print_greedy(self):
+        print("Greedy:", [ int(j) for j in self.greedy ])
+        print("E[Greedy]:", self.greedy_cost)
+        
         print("Greedy terms:")
-        for heads_term in self.greedy_terms[0]:
-            print(round(heads_term, 3), end=' ')
-        print()
-
-        for tails_term in self.greedy_terms[1]:
-            print(round(tails_term, 3), end=' ')
+        for c in range(self.d):
+            for c_term in self.greedy_terms[c]:
+                print(round(c_term, 3), end='\t')
+            print()
+        
         print()
 
         for c in range(self.d):
-            for j in self.alt_greedy:
+            for j in self.greedy:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
-    
+
     # Finds the expected cost of the optimal adaptive strategy, and the terms in its sum
-    # Only works for d = 2, will update at some point
     def adapt_OPT_ecost(self):
-        self.AOPT_terms = np.empty(shape=(2,self.n - 1), dtype=float)
+        self.AOPT_terms = np.empty(shape=(self.d,self.n - 1), dtype=float)
         self.AOPT = float('inf')
 
-        chosen_first_coin = None
-        for first_test in range(self.n):
-            p = [ c[0] for c in self.distribution ]
-            del p[first_test]
-            p.sort()
+        sorted_by = np.empty(shape=(self.d, self.n), dtype=int)
+        for c in range(self.d):
+            sorted_by[c] = np.argsort(self.distribution[:,c])
 
-            these_terms = np.zeros(shape=(2,self.n - 1), dtype=float)
-
-            heads_term = self.distribution[first_test][0] * p[0]
-            tails_term = (1.0 - self.distribution[first_test][0]) * (1.0 - p[self.n - 2])
-
-            these_terms[0][0] = heads_term
-            these_terms[1][0] = tails_term
-
-            for j in range(1, self.n - 1):
-                heads_term *= p[j]
-                tails_term *= 1.0 - p[self.n - 2 - j]
-
-                these_terms[0][j] = heads_term
-                these_terms[1][j] = tails_term
+        self.AOPT_first_die = None
+        for first_die in range(self.n):
+            color_terms = np.empty(shape=(self.d, self.n - 1), dtype=float)
+            for c in range(self.d):
+                color_terms[c][0] = self.distribution[first_die][c]
+                sorted_by_index = 0
+                color_terms_index = 1
+                while color_terms_index < self.n - 1:
+                    if sorted_by[c][sorted_by_index] == first_die:
+                        sorted_by_index += 1
+                        continue
+                    
+                    new_factor = self.distribution[sorted_by[c][sorted_by_index]][c]
+                    color_terms[c][color_terms_index] = color_terms[c][color_terms_index - 1] * new_factor
+                    sorted_by_index += 1
+                    color_terms_index += 1
             
-            this_cost = sum(these_terms[0]) + sum(these_terms[1])
+            this_cost = sum([ sum(color_terms[c]) for c in range(self.d) ])
             if this_cost < self.AOPT:
-                chosen_first_coin = first_test
+                self.AOPT_first_die = first_die
                 self.AOPT = this_cost
-                self.AOPT_terms = copy.deepcopy(these_terms)
+                self.AOPT_terms = copy.deepcopy(color_terms)
         
-        self.AOPT += 2.0
+        self.AOPT += 1.0
 
     def print_AOPT(self):
         print(f"E[AOPT]: {self.AOPT}")
         print(f"Terms:")
-        for head_term in self.AOPT_terms[0]:
-            print(round(head_term, 3), end=' ')
-        print()
-        for tails_term in self.AOPT_terms[1]:
-            print(round(tails_term, 3), end=' ')
-        print()
+        for c in range(self.d):
+            for c_term in self.AOPT_terms[c]:
+                print(round(c_term, 3), end='\t')
+            print()
 
     def get_scale_vector(self):
         scale_vector = np.ones(shape=(self.d,), dtype=float)
@@ -312,26 +374,6 @@ class DUV:
                 bias[c] *= self.distribution[self.OPT[k]][c]
         
         self.OPT_non_greedy_count = len(self.OPT_non_greedy_indexes)
-    
-    def plot_dice(self):
-        if self.d != 3: return
-
-        fig, ax = plt.subplots()
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        for die in self.distribution: 
-            ax.plot(die[0], die[1], marker='o')
-        for k in range(self.n - 1):
-            die = self.distribution[self.OPT[k]]
-            next_die = self.distribution[self.OPT[k + 1]]
-            ax.annotate(
-                "",
-                xytext=(die[0], die[1]),
-                xy=(next_die[0], next_die[1]),
-                arrowprops=dict(arrowstyle="->")
-            )
-        
-        plt.show()
 
     def similarity(self):
         score = 0.0
@@ -344,16 +386,11 @@ class DUV:
         return score
 
     def diff(self):
-        return sum([
-            self.greedy_terms[0][j] + self.greedy_terms[1][j]
-            - self.AOPT_terms[0][j] - self.AOPT_terms[1][j]
-            for j in range(1, self.n - 1)
-        ])
+        return self.greedy_cost - self.AOPT
 
-
-GENERATION_SIZE = 10_000
-GENERATION_COUNT = 1000
-DN = (2, 10)
+GENERATION_SIZE = 100
+GENERATION_COUNT = 100_000
+DN = (3, 8)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -364,11 +401,8 @@ if __name__ == '__main__':
             duv = DUV(*DN)
             duv.init_distribution()
 
-            if not duv.good_distribution():
-                continue
-
             duv.adapt_OPT_ecost()
-            duv.generate_alt_greedy()
+            duv.generate_greedy()
 
             diff = duv.diff()
             if diff > max_diff:
@@ -386,11 +420,8 @@ if __name__ == '__main__':
                 duv = DUV(*DN)
                 duv.init_child_distribution(current_parent.distribution)
 
-                if not duv.good_distribution():
-                    continue
-
                 duv.adapt_OPT_ecost()
-                duv.generate_alt_greedy()
+                duv.generate_greedy()
 
                 diff = duv.diff()
                 if diff > max_diff:
@@ -406,10 +437,10 @@ if __name__ == '__main__':
         max_diff_instance.print_distribution()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_AOPT(); print()
-        max_diff_instance.print_alt_greedy()
+        max_diff_instance.print_greedy()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         max_diff_instance.print_distribution()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_AOPT(); print()
-        max_diff_instance.print_alt_greedy()
+        max_diff_instance.print_greedy()
