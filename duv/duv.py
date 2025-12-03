@@ -396,11 +396,16 @@ class DUV:
         return score
 
     def diff(self):
-        return self.greedy_cost - self.AOPT
+        sum_to_bound = 0.0
+        for k in range(1, self.n - 1):
+            if sum(self.greedy_terms[:,k]) > sum(self.greedy_terms[:,k-1]):
+                sum_to_bound += sum(self.greedy_terms[:,k])
+        
+        return sum_to_bound - self.AOPT
 
-GENERATION_SIZE = 100
+GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (2, 7)
+DN = (3, 8)
 CAP = sum([ 0.5 ** n for n in range(2, DN[1]) ])
 if __name__ == '__main__':
     i = 1
