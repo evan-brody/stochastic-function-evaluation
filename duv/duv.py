@@ -333,36 +333,35 @@ class DUV:
                 available[best_pair[0]] = available[best_pair[1]] = False
             else:
                 best_test = None
-                min_score = float('inf')
-                for j in range(self.n):
-                    if not available[j]:
-                        continue
+                # min_score = float('inf')
+                # for j in range(self.n):
+                #     if not available[j]:
+                #         continue
 
-                    this_test_score = np.dot(biases, self.distribution[j])
-                    if this_test_score < min_score:
-                        min_score = this_test_score
-                        best_test = j
+                #     this_test_score = np.dot(biases, self.distribution[j])
+                #     if this_test_score < min_score:
+                #         min_score = this_test_score
+                #         best_test = j
                 
-                if min_score > 1/3:
-                    max_bias = float('-inf')
-                    max_color = None
-                    for c in range(self.d):
-                        if biases[c] > max_bias:
-                            max_bias = biases[c]
-                            max_color = c
-                    
-                    min_max_color = None
-                    min_max_color_score = float('inf')
+                max_bias = float('-inf')
+                max_color = None
+                for c in range(self.d):
+                    if biases[c] > max_bias:
+                        max_bias = biases[c]
+                        max_color = c
+                
+                min_max_color = None
+                min_max_color_score = float('inf')
 
-                    for j in range(self.n):
-                        if not available[j]: continue
-                        this_score = self.distribution[j][max_color]
+                for j in range(self.n):
+                    if not available[j]: continue
+                    this_score = self.distribution[j][max_color]
 
-                        if this_score < min_max_color_score:
-                            min_max_color_score = this_score
-                            min_max_color = j
-                    
-                    best_test = min_max_color
+                    if this_score < min_max_color_score:
+                        min_max_color_score = this_score
+                        min_max_color = j
+                
+                best_test = min_max_color
 
                 # update biases
                 for c in range(self.d):
@@ -509,7 +508,7 @@ class DUV:
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (3, 3)
+DN = (3, 4)
 CAP = sum([ 0.5 ** n for n in range(2, DN[1]) ])
 if __name__ == '__main__':
     i = 1
@@ -517,7 +516,7 @@ if __name__ == '__main__':
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(1_000_000):
+        for _ in range(1_00_000):
             duv = DUV(*DN)
             duv.init_distribution()
 
