@@ -184,6 +184,9 @@ class DUV:
         self.alt_greedy_cost = self.expected_cost(self.alt_greedy)
 
     def generate_greedy(self):
+        self.generate_analysis_greedy()
+        return
+
         biases = np.ones(shape=(self.d,), dtype=float)
         available = [True] * self.n
         self.greedy = np.empty(shape=(self.n,), dtype=int)
@@ -277,6 +280,105 @@ class DUV:
             for j in self.greedy:
                 print(round(self.distribution[j][c], 3), end='\t')
             print()
+    
+    def generate_analysis_greedy(self):
+        biases = np.ones(shape=(self.d,), dtype=float)
+        available = [True] * self.n
+        self.greedy = np.empty(shape=(self.n,), dtype=int)
+        self.greedy_cost = 1.0
+        self.greedy_terms = np.empty(shape=(self.d, self.n - 1), dtype=float)
+
+        k = 0
+
+        # fixed first test
+        # for c in range(self.d):
+        #     biases[c] *= self.distribution[self.AOPT_first_die][c]
+        #     self.greedy_terms[c][0] = biases[c]
+        # self.greedy[0] = self.AOPT_first_die
+        # self.greedy_cost += sum(biases)
+        # k += 1
+        # available[self.AOPT_first_die] = False
+
+        while k < self.n - 1:
+            if np.all(biases == biases[0]): # unbiased
+                # find best pair
+                best_pair = (None, None)
+                min_score = float('inf')
+                unordered_pairs = list(it.combinations(range(self.n), 2))
+                for i, j in unordered_pairs:
+                    if not (available[i] and available[j]):
+                        continue
+
+                    this_pair_score = np.dot(self.distribution[i], self.distribution[j])
+                    if this_pair_score < min_score:
+                        min_score = this_pair_score
+                        best_pair = (i, j)
+                
+                # update biases
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_pair[0]][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_pair[0]
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_pair[1]][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_pair[1]
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                # update availability
+                available[best_pair[0]] = available[best_pair[1]] = False
+            else:
+                best_test = None
+                min_score = float('inf')
+                for j in range(self.n):
+                    if not available[j]:
+                        continue
+
+                    this_test_score = np.dot(biases, self.distribution[j])
+                    if this_test_score < min_score:
+                        min_score = this_test_score
+                        best_test = j
+                
+                if min_score > 1/3:
+                    max_bias = float('-inf')
+                    max_color = None
+                    for c in range(self.d):
+                        if biases[c] > max_bias:
+                            max_bias = biases[c]
+                            max_color = c
+                    
+                    min_max_color = None
+                    min_max_color_score = float('inf')
+
+                    for j in range(self.n):
+                        if not available[j]: continue
+                        this_score = self.distribution[j][max_color]
+
+                        if this_score < min_max_color_score:
+                            min_max_color_score = this_score
+                            min_max_color = j
+                    
+                    best_test = min_max_color
+
+                # update biases
+                for c in range(self.d):
+                    biases[c] *= self.distribution[best_test][c]
+                    self.greedy_terms[c][k] = biases[c]
+                self.greedy[k] = best_test
+                self.greedy_cost += sum(biases)
+                k += 1
+
+                # update availability
+                available[best_test] = False
+        
+        for j in range(self.n):
+            if available[j]:
+                self.greedy[self.n - 1] = j
+                break
 
     # Finds the expected cost of the optimal adaptive strategy, and the terms in its sum
     def adapt_OPT_ecost(self):
@@ -396,16 +498,18 @@ class DUV:
         return score
 
     def diff(self):
-        sum_to_bound = 0.0
-        for k in range(1, self.n - 1):
-            if sum(self.greedy_terms[:,k]) > sum(self.greedy_terms[:,k-1]):
-                sum_to_bound += sum(self.greedy_terms[:,k])
-        
-        return sum_to_bound - self.AOPT
+        # sum_to_bound = 0.0
+        # for k in range(1, self.n - 1):
+        #     if sum(self.greedy_terms[:,k]) > sum(self.greedy_terms[:,k-1])/3:
+        #         sum_to_bound += sum(self.greedy_terms[:,k])
+        # # sum([ sum(self.greedy_terms[:,k]) - max(self.greedy_terms[:,k]) ])
+        # return sum_to_bound - self.AOPT + 2.0
+        return self.greedy_cost - self.AOPT
+        return sum([ sum(self.greedy_terms[:,k]) - max(self.greedy_terms[:,k]) for k in range(1, self.n - 1)])
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (3, 8)
+DN = (3, 3)
 CAP = sum([ 0.5 ** n for n in range(2, DN[1]) ])
 if __name__ == '__main__':
     i = 1
@@ -413,7 +517,7 @@ if __name__ == '__main__':
     max_similarity = -1
     max_diff_instance = None
     try:
-        for _ in range(100_000):
+        for _ in range(1_000_000):
             duv = DUV(*DN)
             duv.init_distribution()
 
