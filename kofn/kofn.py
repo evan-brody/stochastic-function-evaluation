@@ -32,11 +32,10 @@ class KOFN:
                 if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
 
             # Check which realizations aren't finished
-            for l in range(step + 1):
-                num_ones = l
-                num_zeroes = step - l
+            for num_ones in range(step + 1):
+                num_zeroes = step - num_ones
                 if num_ones < self.k and num_zeroes < self.k_bar:
-                    cost += ones_count[l]
+                    cost += ones_count[num_ones]
 
         return cost
 
