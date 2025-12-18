@@ -50,21 +50,14 @@ class KOFN:
                 self.EOPT = this_cost
                 self.OPT = perm
 
+K = 5
+N = 7
 if __name__ == '__main__':
-    # kofn = KOFN(5, 7)
-    # kofn.brute_force_OPT()
-    # print(kofn.OPT)
-    # print(kofn.EOPT)
-    # print(np.matrix.round(kofn.p, 2))
-
     for _ in range(100_000):
-        kofn = KOFN(5, 7)
-        # naive_cost = kofn.expected_cost(list(range(7)))
+        kofn = KOFN(K, N)
         kofn.brute_force_OPT()
-        if 2 not in kofn.OPT[:3]:
+        if 0 < kofn.OPT[-1] < N - 1:
             print(kofn.OPT)
             print(kofn.EOPT)
             print(np.matrix.round(kofn.p, 2))
             while True: pass
-
-
