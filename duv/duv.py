@@ -508,7 +508,7 @@ class DUV:
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (3, 4)
+DN = (3, 6)
 CAP = sum([ 0.5 ** n for n in range(2, DN[1]) ])
 if __name__ == '__main__':
     i = 1
