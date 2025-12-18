@@ -9,6 +9,7 @@ class KOFN:
     def __init__(self, k, n):
         self.k = k
         self.n = n
+        self.k_bar = self.n - self.k + 1
 
         self.init_distribution()
     
@@ -20,9 +21,7 @@ class KOFN:
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
         ones_count[0] = 1.0
-        zeroes_count = np.zeros(shape=(self.n + 1,), dtype=float)
-        zeroes_count[0] = 1.0
-        cost = 1.0 # Always flip the first coin
+        cost = 1.0 # We always flip the first coin
 
         for step, j in enumerate(strategy):
             step += 1 # Correct for 0-indexing
@@ -32,14 +31,11 @@ class KOFN:
                 ones_count[l] -= ones_count[l] * self.p[j]
                 if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
 
-                zeroes_count[l] -= zeroes_count[l] * (1.0 - self.p[j])
-                if l > 0: zeroes_count[l] += zeroes_count[l - 1] * (1.0 - self.p[j])
-
             # Check which realizations aren't finished
             for l in range(step + 1):
                 num_ones = l
                 num_zeroes = step - l
-                if num_ones < self.k and num_zeroes < self.n - self.k + 1:
+                if num_ones < self.k and num_zeroes < self.k_bar:
                     cost += ones_count[l]
 
         return cost
@@ -56,8 +52,20 @@ class KOFN:
                 self.OPT = perm
 
 if __name__ == '__main__':
-    kofn = KOFN(5, 9)
-    kofn.brute_force_OPT()
-    print(kofn.OPT)
-    print(kofn.EOPT)
-    print(np.matrix.round(kofn.p, 2))
+    # kofn = KOFN(5, 7)
+    # kofn.brute_force_OPT()
+    # print(kofn.OPT)
+    # print(kofn.EOPT)
+    # print(np.matrix.round(kofn.p, 2))
+
+    for _ in range(100_000):
+        kofn = KOFN(5, 7)
+        # naive_cost = kofn.expected_cost(list(range(7)))
+        kofn.brute_force_OPT()
+        if 2 not in kofn.OPT[:3]:
+            print(kofn.OPT)
+            print(kofn.EOPT)
+            print(np.matrix.round(kofn.p, 2))
+            while True: pass
+
+
