@@ -61,3 +61,5 @@ if __name__ == '__main__':
             print(kofn.EOPT)
             print(np.matrix.round(kofn.p, 2))
             while True: pass
+        else:
+            print(_)
