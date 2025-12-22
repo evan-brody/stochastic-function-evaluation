@@ -11,6 +11,11 @@ class KOFN:
         self.n = n
         self.k_bar = self.n - self.k + 1
 
+        self.unordered_threshold = min(K, N - K + 1)
+        self.unordered_threshold_visual = [0] * N
+        self.unordered_threshold_visual[min(K, N - K + 1) - 1] = 1
+        self.unordered_threshold_visual = tuple(self.unordered_threshold_visual)
+
         self.init_distribution()
     
     def init_distribution(self):
@@ -49,8 +54,16 @@ class KOFN:
             if this_cost < self.EOPT:
                 self.EOPT = this_cost
                 self.OPT = perm
+    
+    def print_OPT(self):
+        print(self.unordered_threshold_visual)
+        print(kofn.OPT)
+        print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.OPT ]))
+        print()
+        print(kofn.EOPT)
+        print(np.matrix.round(kofn.p, 2))
 
-K = 4
+K = 3
 N = 7
 if __name__ == '__main__':
     kofn = KOFN(K, N)
@@ -61,19 +74,15 @@ if __name__ == '__main__':
     Z[threshold - 1] = 1
     Z = tuple(Z)
     
-    print(Z)
-    print(kofn.OPT)
-    print(kofn.EOPT)
-    print(np.matrix.round(kofn.p, 2))
-    
-
-    # for _ in range(100_000):
-    #     kofn = KOFN(K, N)
-    #     kofn.brute_force_OPT()
-    #     if 0 < kofn.OPT[-1] < N - 1:
-    #         print(kofn.OPT)
-    #         print(kofn.EOPT)
-    #         print(np.matrix.round(kofn.p, 2))
-    #         while True: pass
-    #     else:
-    #         print(_)
+    one_start = set([ i for i in range(K) ])
+    zero_start = set([ i for i in range(N - 1, K - 2, -1) ])
+    for iteration in range(100_000):
+        kofn = KOFN(K, N)
+        kofn.brute_force_OPT()
+        starter = set(kofn.OPT[:threshold - 1])
+        
+        if not (starter.issubset(one_start) or starter.issubset(zero_start)):
+            kofn.print_OPT()
+            raise Exception('counterexample')
+        else:
+            print(f'===============[{iteration}]===============')
