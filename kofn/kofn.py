@@ -109,7 +109,7 @@ def array_is_sorted(a):
     return array_non_decreasing(a) or array_non_increasing(a)
 
 K = 3
-N = 5
+N = 6
 K_BAR = N - K + 1
 if __name__ == '__main__':
     threshold = min(K, K_BAR)
