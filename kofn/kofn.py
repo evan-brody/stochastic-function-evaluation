@@ -55,20 +55,27 @@ class KOFN:
         one_indices = np.array([ i for i in range(self.k) ])
         zero_indices = np.array([ i for i in range(self.n - self.k + 1) ])
 
+        [ print(i, end='\t') for i in one_indices ]; print()
+        [ print(round(f, 2), end='\t') for f in ones_count[:1] ]; print()
+        print('============[ end of 1 ]============')
+        [ print(i, end='\t') for i in zero_indices ]; print()
+        [ print(round(f, 2), end='\t') for f in ones_count[:1][::-1] ]; print()
+        print('============[ end of 0 ]============'); print()
+
         for step, j in enumerate(strategy[:-1]):
             step += 1 # Correct for 0-indexing
-
-            [ print(i, end='\t') for i in one_indices ]; print()
-            [ print(round(f, 2), end='\t') for f in ones_count[:step] ]; print()
-            print('============[ end of 1 ]============')
-            [ print(i, end='\t') for i in zero_indices ]; print()
-            [ print(round(f, 2), end='\t') for f in ones_count[:step][::-1] ]; print()
-            print('============[ end of 0 ]============'); print()
 
             # Move probability mass forward according to the chosen coin
             for l in range(self.n, -1, -1):
                 ones_count[l] -= ones_count[l] * self.p[j]
                 if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
+
+            [ print(i, end='\t') for i in one_indices ]; print()
+            [ print(round(f, 2), end='\t') for f in ones_count[:step + 1] ]; print()
+            print('============[ end of 1 ]============')
+            [ print(i, end='\t') for i in zero_indices ]; print()
+            [ print(round(f, 2), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
+            print('============[ end of 0 ]============'); print()
 
             # Check which realizations aren't finished
             for num_ones in range(step):
