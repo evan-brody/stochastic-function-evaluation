@@ -62,7 +62,7 @@ class KOFN:
             print('============[ end of 1 ]============')
             [ print(i, end='\t') for i in zero_indices ]; print()
             [ print(round(f, 2), end='\t') for f in ones_count[:step][::-1] ]; print()
-            print('============[ end of 0 ]============')
+            print('============[ end of 0 ]============'); print()
 
             # Move probability mass forward according to the chosen coin
             for l in range(self.n, -1, -1):
