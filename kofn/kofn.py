@@ -4,6 +4,7 @@
 
 import numpy as np
 import itertools as it
+import sys
 
 class KOFN:
     def __init__(self, k, n):
@@ -44,6 +45,39 @@ class KOFN:
 
         return cost
 
+    def expected_cost_printing(self, strategy):
+        # ones_count[i] stores Pr[have i ones]
+        ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
+        ones_count[0] = 1.0
+        cost = 1.0 # We always flip the first coin
+
+        one_indices = np.array([ i for i in range(self.k) ])
+        zero_indices = np.array([ i for i in range(self.n - self.k + 1) ])
+
+        for step, j in enumerate(strategy):
+            step += 1 # Correct for 0-indexing
+
+            [ print(i, end='\t') for i in one_indices ]; print()
+            [ print(round(f, 2), end='\t') for f in ones_count[:step] ]; print()
+            print('============[ end of 1 ]============')
+            [ print(i, end='\t') for i in zero_indices ]; print()
+            [ print(round(f, 2), end='\t') for f in ones_count[:step][::-1] ]; print()
+            print('============[ end of 0 ]============')
+
+            # Move probability mass forward according to the chosen coin
+            for l in range(self.n, -1, -1):
+                ones_count[l] -= ones_count[l] * self.p[j]
+                if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
+
+            # Check which realizations aren't finished
+            for num_ones in range(step):
+                num_zeroes = step - num_ones
+                if num_ones < self.k and num_zeroes < self.k_bar:
+                    cost += ones_count[num_ones]
+
+        return cost
+
+
     def brute_force_OPT(self):
         self.OPT = None
         self.EOPT = float('inf')
@@ -60,26 +94,39 @@ class KOFN:
         print(kofn.OPT)
         print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.OPT ]))
         print()
+        self.expected_cost_printing(kofn.OPT)
+        print()
         print(kofn.EOPT)
         print(np.matrix.round(kofn.p, 2))
 
-K = 3
-N = 5
+def array_is_sorted(a):
+    sorted_non_decreasing = all(a[i] <= a[i + 1] for i in range(len(a) - 1))
+    sorted_non_increasing = all(a[i] >= a[i + 1] for i in range(len(a) - 1))
+    return sorted_non_decreasing or sorted_non_increasing
+
+K = 4
+N = 8
 if __name__ == '__main__':
     kofn = KOFN(K, N)
     kofn.brute_force_OPT()
+    kofn.expected_cost_printing(kofn.OPT)
+    sys.exit(0)
 
     threshold = min(K, N - K + 1)
     one_start = set([ i for i in range(K) ])
     zero_start = set([ i for i in range(N - 1, K - 2, -1) ])
-    
-    for iteration in range(100_000):
+
+    for iteration in range(1_000_000):
         kofn = KOFN(K, N)
         kofn.brute_force_OPT()
-        starter = set(kofn.OPT[:threshold - 1])
+        starter = set(kofn.OPT[:threshold])
         
         if not (starter.issubset(one_start) or starter.issubset(zero_start)):
             kofn.print_OPT()
-            raise Exception('counterexample')
-        else:
-            print(f'===============[{iteration}]===============')
+            sys.exit(0)
+        
+        if not array_is_sorted(kofn.OPT[threshold:]):
+            kofn.print_OPT()
+            sys.exit(0)
+
+        print(f'===============[{iteration}]===============')
