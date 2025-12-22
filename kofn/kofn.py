@@ -99,15 +99,20 @@ class KOFN:
         print(kofn.EOPT)
         print(np.matrix.round(kofn.p, 2))
 
-def array_is_sorted(a):
-    non_decreasing = all(a[i] <= a[i + 1] for i in range(len(a) - 1))
-    non_increasing = all(a[i] >= a[i + 1] for i in range(len(a) - 1))
-    return non_decreasing or non_increasing
+def array_non_decreasing(a):
+    return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
 
-K = 4
-N = 8
+def array_non_increasing(a):
+    return all(a[i] >= a[i + 1] for i in range(len(a) - 1))
+
+def array_is_sorted(a):
+    return array_non_decreasing(a) or array_non_increasing(a)
+
+K = 3
+N = 5
+K_BAR = N - K + 1
 if __name__ == '__main__':
-    threshold = min(K, N - K + 1)
+    threshold = min(K, K_BAR)
     one_start = set([ i for i in range(N - 1, N - K - 1, -1) ])
     zero_start = set([ i for i in range(N - K + 1) ])
 
@@ -115,13 +120,22 @@ if __name__ == '__main__':
         kofn = KOFN(K, N)
         kofn.brute_force_OPT()
         one_starter = set(kofn.OPT[:K])
-        zero_starter = set(kofn.OPT[:N - K + 1])
+        zero_starter = set(kofn.OPT[:K_BAR])
         
-        if not (one_starter.issubset(one_start) or zero_starter.issubset(zero_start)):
-            kofn.print_OPT()
-            sys.exit(0)
+        sorted_start = False
+        if one_starter == one_start:
+            sorted_start = True
+            if not array_non_increasing(kofn.OPT[K:]):
+                kofn.print_OPT()
+                sys.exit(0)
         
-        if not array_is_sorted(kofn.OPT[threshold:]):
+        if zero_starter == zero_start:
+            sorted_start = True
+            if not array_non_decreasing(kofn.OPT[K_BAR:]):
+                kofn.print_OPT()
+                sys.exit(0)
+        
+        if not sorted_start:
             kofn.print_OPT()
             sys.exit(0)
 
