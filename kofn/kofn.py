@@ -107,11 +107,6 @@ def array_is_sorted(a):
 K = 4
 N = 8
 if __name__ == '__main__':
-    kofn = KOFN(K, N)
-    kofn.brute_force_OPT()
-    kofn.expected_cost_printing(kofn.OPT)
-    sys.exit(0)
-
     threshold = min(K, N - K + 1)
     one_start = set([ i for i in range(K) ])
     zero_start = set([ i for i in range(N - 1, K - 2, -1) ])
@@ -119,9 +114,10 @@ if __name__ == '__main__':
     for iteration in range(1_000_000):
         kofn = KOFN(K, N)
         kofn.brute_force_OPT()
-        starter = set(kofn.OPT[:threshold])
+        one_starter = set(kofn.OPT[:K])
+        zero_starter = set(kofn.OPT[:N - K + 1])
         
-        if not (starter.issubset(one_start) or starter.issubset(zero_start)):
+        if not (one_starter.issubset(one_start) or zero_starter.issubset(zero_start)):
             kofn.print_OPT()
             sys.exit(0)
         
