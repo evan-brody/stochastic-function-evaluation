@@ -100,16 +100,16 @@ class KOFN:
         print(np.matrix.round(kofn.p, 2))
 
 def array_is_sorted(a):
-    sorted_non_decreasing = all(a[i] <= a[i + 1] for i in range(len(a) - 1))
-    sorted_non_increasing = all(a[i] >= a[i + 1] for i in range(len(a) - 1))
-    return sorted_non_decreasing or sorted_non_increasing
+    non_decreasing = all(a[i] <= a[i + 1] for i in range(len(a) - 1))
+    non_increasing = all(a[i] >= a[i + 1] for i in range(len(a) - 1))
+    return non_decreasing or non_increasing
 
 K = 4
 N = 8
 if __name__ == '__main__':
     threshold = min(K, N - K + 1)
-    one_start = set([ i for i in range(K) ])
-    zero_start = set([ i for i in range(N - 1, K - 2, -1) ])
+    one_start = set([ i for i in range(N - 1, N - K - 1, -1) ])
+    zero_start = set([ i for i in range(N - K + 1) ])
 
     for iteration in range(1_000_000):
         kofn = KOFN(K, N)
