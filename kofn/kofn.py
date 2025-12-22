@@ -29,7 +29,8 @@ class KOFN:
         ones_count[0] = 1.0
         cost = 1.0 # We always flip the first coin
 
-        for step, j in enumerate(strategy):
+        # Loop ends early because we shouldn't add in the last term
+        for step, j in enumerate(strategy[:-1]):
             step += 1 # Correct for 0-indexing
 
             # Move probability mass forward according to the chosen coin
@@ -54,7 +55,7 @@ class KOFN:
         one_indices = np.array([ i for i in range(self.k) ])
         zero_indices = np.array([ i for i in range(self.n - self.k + 1) ])
 
-        for step, j in enumerate(strategy):
+        for step, j in enumerate(strategy[:-1]):
             step += 1 # Correct for 0-indexing
 
             [ print(i, end='\t') for i in one_indices ]; print()
@@ -76,7 +77,6 @@ class KOFN:
                     cost += ones_count[num_ones]
 
         return cost
-
 
     def brute_force_OPT(self):
         self.OPT = None
