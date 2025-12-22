@@ -50,7 +50,6 @@ class KOFN:
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
         ones_count[0] = 1.0
-        cost = 1.0 # We always flip the first coin
 
         one_indices = np.array([ i for i in range(self.k) ])
         zero_indices = np.array([ i for i in range(self.n - self.k + 1) ])
@@ -62,7 +61,7 @@ class KOFN:
         [ print(round(f, 2), end='\t') for f in ones_count[:1][::-1] ]; print()
         print('============[ end of 0 ]============'); print()
 
-        for step, j in enumerate(strategy[:-1]):
+        for step, j in enumerate(strategy):
             step += 1 # Correct for 0-indexing
 
             # Move probability mass forward according to the chosen coin
@@ -76,14 +75,6 @@ class KOFN:
             [ print(i, end='\t') for i in zero_indices ]; print()
             [ print(round(f, 2), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
             print('============[ end of 0 ]============'); print()
-
-            # Check which realizations aren't finished
-            for num_ones in range(step):
-                num_zeroes = step - num_ones
-                if num_ones < self.k and num_zeroes < self.k_bar:
-                    cost += ones_count[num_ones]
-
-        return cost
 
     def brute_force_OPT(self):
         self.OPT = None
