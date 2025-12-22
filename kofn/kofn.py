@@ -64,18 +64,15 @@ class KOFN:
         print(np.matrix.round(kofn.p, 2))
 
 K = 3
-N = 7
+N = 5
 if __name__ == '__main__':
     kofn = KOFN(K, N)
     kofn.brute_force_OPT()
 
-    Z = [0] * N
     threshold = min(K, N - K + 1)
-    Z[threshold - 1] = 1
-    Z = tuple(Z)
-    
     one_start = set([ i for i in range(K) ])
     zero_start = set([ i for i in range(N - 1, K - 2, -1) ])
+    
     for iteration in range(100_000):
         kofn = KOFN(K, N)
         kofn.brute_force_OPT()
