@@ -3,6 +3,7 @@
 # @brief    Testbed for nonadaptive k-of-n evaluation.
 
 import numpy as np
+import copy
 import itertools as it
 import sys
 
@@ -91,11 +92,38 @@ class KOFN:
         print(self.unordered_threshold_visual)
         print(kofn.OPT)
         print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.OPT ]))
+        print(self.EOPT)
         print()
-        self.expected_cost_printing(kofn.OPT)
-        print()
-        print(kofn.EOPT)
-        print(np.matrix.round(kofn.p, 2))
+        # self.expected_cost_printing(kofn.OPT)
+        # print()
+        # print(kofn.EOPT)
+        # print(np.matrix.round(kofn.p, 2))
+    
+    def generate_one_shot(self):
+        best_strategy = None
+        to_beat = float('inf')
+        for nondecreasing in (True, False):
+            strategy = sorted(list(range(self.n)), reverse=(not nondecreasing))
+            if self.k < self.k_bar and nondecreasing or self.k > self.k_bar and not nondecreasing:
+                print(self.k > self.k_bar, nondecreasing)
+                crossover = max(self.k, self.k_bar)
+                strategy[:crossover] = sorted(strategy[:crossover], reverse=nondecreasing)
+            
+            this_cost = self.expected_cost(strategy)
+            if this_cost < to_beat:
+                to_beat = this_cost
+                best_strategy = strategy
+            
+        
+        self.one_shot = copy.deepcopy(best_strategy)
+        self.one_shot_cost = to_beat
+    
+    def print_one_shot(self):
+        print(self.unordered_threshold_visual)
+        print(tuple(self.one_shot))
+        print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.one_shot ]))
+        print(self.one_shot_cost); print()
+        
 
 def array_non_decreasing(a):
     return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
@@ -117,24 +145,31 @@ if __name__ == '__main__':
     for iteration in range(1_000_000):
         kofn = KOFN(K, N)
         kofn.brute_force_OPT()
-        one_starter = set(kofn.OPT[:K])
-        zero_starter = set(kofn.OPT[:K_BAR])
+        kofn.generate_one_shot()
         
-        sorted_start = False
-        if one_starter == one_start:
-            sorted_start = True
-            if not array_non_increasing(kofn.OPT[K:]):
-                kofn.print_OPT()
-                sys.exit(0)
-        
-        if zero_starter == zero_start:
-            sorted_start = True
-            if not array_non_decreasing(kofn.OPT[K_BAR:]):
-                kofn.print_OPT()
-                sys.exit(0)
-        
-        if not sorted_start:
+        if kofn.one_shot_cost - kofn.EOPT > 0.001:
+            kofn.print_one_shot()
             kofn.print_OPT()
             sys.exit(0)
+        
+        # one_starter = set(kofn.OPT[:K])
+        # zero_starter = set(kofn.OPT[:K_BAR])
+        
+        # sorted_start = False
+        # if one_starter == one_start:
+        #     sorted_start = True
+        #     if not array_non_increasing(kofn.OPT[K:]):
+        #         kofn.print_OPT()
+        #         sys.exit(0)
+        
+        # if zero_starter == zero_start:
+        #     sorted_start = True
+        #     if not array_non_decreasing(kofn.OPT[K_BAR:]):
+        #         kofn.print_OPT()
+        #         sys.exit(0)
+        
+        # if not sorted_start:
+        #     kofn.print_OPT()
+        #     sys.exit(0)
 
         print(f'===============[{iteration}]===============')
