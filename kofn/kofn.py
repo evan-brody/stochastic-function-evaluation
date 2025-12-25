@@ -27,8 +27,8 @@ class KOFN:
     def get_scale_vector(self):
         scale_vector = np.ones(shape=(self.n,), dtype=float)
 
-        for c in range(self.d):
-            scale_vector[c] += np.random.normal(scale=0.01)
+        for j in range(self.n):
+            scale_vector[j] += np.random.normal(scale=0.01)
 
         return scale_vector
     
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     max_diff = float('-inf')
     max_diff_instance = None
     try:
-        for _ in range(1_00_000):
+        for _ in range(100_000):
             kofn = KOFN(K, N)
             kofn.init_distribution()
 
@@ -196,7 +196,7 @@ if __name__ == '__main__':
             current_parent = copy.deepcopy(max_diff_instance)
             for __ in range(GENERATION_SIZE):
                 kofn = KOFN(K, N)
-                kofn.init_child_distribution(current_parent.distribution)
+                kofn.init_child_distribution(current_parent.p)
 
                 kofn.brute_force_OPT()
                 kofn.generate_one_shot()
