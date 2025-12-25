@@ -105,7 +105,6 @@ class KOFN:
         for nondecreasing in (True, False):
             strategy = sorted(list(range(self.n)), reverse=(not nondecreasing))
             if self.k < self.k_bar and nondecreasing or self.k > self.k_bar and not nondecreasing:
-                print(self.k > self.k_bar, nondecreasing)
                 crossover = max(self.k, self.k_bar)
                 strategy[:crossover] = sorted(strategy[:crossover], reverse=nondecreasing)
             
