@@ -52,6 +52,13 @@ class KOFN:
         
         new_coins = self.clamp(new_coins)
         self.p = sorted(new_coins)
+        
+    def nudge_k(self):
+        val = np.random.rand()
+        if val < 0.05:
+            self.k -= 1
+        elif val > 0.95:
+            self.k += 1
     
     def expected_cost(self, strategy):
         # ones_count[i] stores Pr[have i ones]
@@ -176,6 +183,7 @@ if __name__ == '__main__':
     max_diff_instance = None
     try:
         for _ in range(100_000):
+            K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
 
@@ -195,8 +203,9 @@ if __name__ == '__main__':
         for _ in range(GENERATION_COUNT):
             current_parent = copy.deepcopy(max_diff_instance)
             for __ in range(GENERATION_SIZE):
-                kofn = KOFN(K, N)
+                kofn = KOFN(current_parent.k, N)
                 kofn.init_child_distribution(current_parent.p)
+                kofn.nudge_k()
 
                 kofn.brute_force_OPT()
                 kofn.generate_one_shot()
