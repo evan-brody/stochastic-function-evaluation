@@ -18,11 +18,40 @@ class KOFN:
         self.unordered_threshold_visual[min(K, N - K + 1) - 1] = 1
         self.unordered_threshold_visual = tuple(self.unordered_threshold_visual)
 
-        self.init_distribution()
+        # self.init_distribution()
     
     def init_distribution(self):
         self.p = np.random.rand(self.n)
         self.p.sort()
+    
+    def get_scale_vector(self):
+        scale_vector = np.ones(shape=(self.n,), dtype=float)
+
+        for c in range(self.d):
+            scale_vector[c] += np.random.normal(scale=0.01)
+
+        return scale_vector
+    
+    def normalize(self, vector):
+        sv = sum(vector)
+        vector[:] /= sv
+
+        return vector
+    
+    def clamp(self, vector):
+        for j in range(len(vector)):
+            vector[j] = min(1, vector[j])
+        
+        return vector
+    
+    def init_child_distribution(self, parent_distribution):
+        new_coins = copy.deepcopy(parent_distribution)
+        scale_vector = self.get_scale_vector()
+        for j in range(self.n):
+            new_coins[j] *= scale_vector[j]
+        
+        new_coins = self.clamp(new_coins)
+        self.p = sorted(new_coins)
     
     def expected_cost(self, strategy):
         # ones_count[i] stores Pr[have i ones]
@@ -122,6 +151,9 @@ class KOFN:
         print(tuple(self.one_shot))
         print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.one_shot ]))
         print(self.one_shot_cost); print()
+    
+    def diff(self):
+        return self.one_shot_cost - self.EOPT
         
 
 def array_non_decreasing(a):
@@ -133,42 +165,58 @@ def array_non_increasing(a):
 def array_is_sorted(a):
     return array_non_decreasing(a) or array_non_increasing(a)
 
-K = 3
-N = 6
-K_BAR = N - K + 1
+
+GENERATION_SIZE = 1000
+GENERATION_COUNT = 100_000
+N = 5
+K = 2
 if __name__ == '__main__':
-    threshold = min(K, K_BAR)
-    one_start = set([ i for i in range(N - 1, N - K - 1, -1) ])
-    zero_start = set([ i for i in range(N - K + 1) ])
+    i = 1
+    max_diff = float('-inf')
+    max_diff_instance = None
+    try:
+        for _ in range(1_00_000):
+            kofn = KOFN(K, N)
+            kofn.init_distribution()
 
-    for iteration in range(1_000_000):
-        kofn = KOFN(K, N)
-        kofn.brute_force_OPT()
-        kofn.generate_one_shot()
-        
-        if kofn.one_shot_cost - kofn.EOPT > 0.001:
-            kofn.print_one_shot()
-            kofn.print_OPT()
-            sys.exit(0)
-        
-        # one_starter = set(kofn.OPT[:K])
-        # zero_starter = set(kofn.OPT[:K_BAR])
-        
-        # sorted_start = False
-        # if one_starter == one_start:
-        #     sorted_start = True
-        #     if not array_non_increasing(kofn.OPT[K:]):
-        #         kofn.print_OPT()
-        #         sys.exit(0)
-        
-        # if zero_starter == zero_start:
-        #     sorted_start = True
-        #     if not array_non_decreasing(kofn.OPT[K_BAR:]):
-        #         kofn.print_OPT()
-        #         sys.exit(0)
-        
-        # if not sorted_start:
-        #     kofn.print_OPT()
-        #     sys.exit(0)
+            kofn.brute_force_OPT()
+            kofn.generate_one_shot()
 
-        print(f'===============[{iteration}]===============')
+            diff = kofn.diff()
+            if diff > max_diff:
+                max_diff = diff
+                max_diff_instance = copy.deepcopy(kofn)
+
+            if i % 1000 == 0:
+                print(f"-------------[{i} -> {round(max_diff, 5)}]-------------")
+            
+            i += 1
+        
+        for _ in range(GENERATION_COUNT):
+            current_parent = copy.deepcopy(max_diff_instance)
+            for __ in range(GENERATION_SIZE):
+                kofn = KOFN(K, N)
+                kofn.init_child_distribution(current_parent.distribution)
+
+                kofn.brute_force_OPT()
+                kofn.generate_one_shot()
+
+                diff = kofn.diff()
+                if diff > max_diff:
+                    max_diff = diff
+                    max_diff_instance = copy.deepcopy(kofn)
+
+                if i % 1000 == 0:
+                    print(f"-------------[gen {_}, {i} -> {round(max_diff, 5)}]-------------")
+                
+                i += 1
+
+        print()
+        print(f"max diff: {max_diff}"); print()
+        max_diff_instance.print_OPT(); print()
+        max_diff_instance.print_one_shot()
+    except KeyboardInterrupt:
+        print("Interrupted."); print()
+        print(f"max diff: {max_diff}"); print()
+        max_diff_instance.print_OPT(); print()
+        max_diff_instance.print_one_shot()
