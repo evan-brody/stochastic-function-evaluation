@@ -126,14 +126,10 @@ class KOFN:
     
     def print_OPT(self):
         print(self.unordered_threshold_visual)
-        print(kofn.OPT)
-        print(tuple([ float(round(kofn.p[j], 2)) for j in kofn.OPT ]))
+        print(self.OPT)
+        print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
         print(self.EOPT)
         print()
-        # self.expected_cost_printing(kofn.OPT)
-        # print()
-        # print(kofn.EOPT)
-        # print(np.matrix.round(kofn.p, 2))
     
     def generate_one_shot(self):
         best_strategy = None
