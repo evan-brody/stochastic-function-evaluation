@@ -130,7 +130,7 @@ class KOFN:
             for ending in it.permutations(remaining):
                 this_permutation = starting + list(ending)
                 this_permutation_cost = self.expected_cost(this_permutation)
-                if this_permutation_cost < self.new_EOPT:
+                if this_permutation_cost < self.EOPT:
                     self.EOPT = this_permutation_cost
                     self.OPT = this_permutation
 
@@ -181,8 +181,8 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 6
-K = 4
+N = 9
+K = 5
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -191,14 +191,11 @@ if __name__ == '__main__':
     for i in range(100_000):
         kofn = KOFN(K, N)
         kofn.init_distribution()
-        if abs(kofn.diff()) > 0.000001:
+        kofn.brute_force_OPT()
+
+        if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
             kofn.print_OPT()
             sys.exit(0)
-        # kofn.brute_force_OPT()
-
-        # if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
-        #     kofn.print_OPT()
-        #     sys.exit(0)
         
         if i % 1000 == 0:
             print(f"----------------[{i}]----------------")
