@@ -112,28 +112,36 @@ class KOFN:
             [ print(i, end='\t') for i in zero_indices ]; print()
             [ print(round(f, 2), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
             print('============[ end of 0 ]============'); print()
-
+    
     def brute_force_OPT(self):
         self.OPT = None
         self.EOPT = float('inf')
 
-        # Brute-force search over every permutation
-        for perm in it.permutations(list(range(self.n))):
-            this_cost = self.expected_cost(perm)
-            if this_cost < self.EOPT:
-                self.EOPT = this_cost
-                self.OPT = perm
-    
+        threshold = max(self.k, self.k_bar)
+        nondecreasing = self.k <= self.k_bar
+
+        tests_set = set(range(self.n))
+
+        # we can sort tests before the threshold
+        for starting in it.combinations(range(self.n), threshold):
+            starting = sorted(starting, reverse=nondecreasing)
+            remaining = tests_set.difference(starting)
+
+            for ending in it.permutations(remaining):
+                this_permutation = starting + list(ending)
+                this_permutation_cost = self.expected_cost(this_permutation)
+                if this_permutation_cost < self.new_EOPT:
+                    self.EOPT = this_permutation_cost
+                    self.OPT = this_permutation
+
+        self.OPT = tuple(self.OPT)
+
     def print_OPT(self):
         print(self.unordered_threshold_visual)
         print(self.OPT)
         print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
-        print(self.EOPT)
-        print()
+        print(self.EOPT); print()
 
-    def pm_forward_to_goal(self):
-        pass
-    
     def generate_one_shot(self):
         best_strategy = None
         to_beat = float('inf')
@@ -147,7 +155,6 @@ class KOFN:
             if this_cost < to_beat:
                 to_beat = this_cost
                 best_strategy = strategy
-            
         
         self.one_shot = copy.deepcopy(best_strategy)
         self.one_shot_cost = to_beat
@@ -159,8 +166,8 @@ class KOFN:
         print(self.one_shot_cost); print()
     
     def diff(self):
-        return self.one_shot_cost - self.EOPT
-        
+        return 0
+
 
 def array_non_decreasing(a):
     return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
@@ -174,7 +181,7 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 7
+N = 6
 K = 4
 if __name__ == '__main__':
     i = 1
@@ -184,11 +191,14 @@ if __name__ == '__main__':
     for i in range(100_000):
         kofn = KOFN(K, N)
         kofn.init_distribution()
-        kofn.brute_force_OPT()
-
-        if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
+        if abs(kofn.diff()) > 0.000001:
             kofn.print_OPT()
             sys.exit(0)
+        # kofn.brute_force_OPT()
+
+        # if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
+        #     kofn.print_OPT()
+        #     sys.exit(0)
         
         if i % 1000 == 0:
             print(f"----------------[{i}]----------------")
