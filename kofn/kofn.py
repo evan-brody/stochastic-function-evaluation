@@ -130,6 +130,9 @@ class KOFN:
         print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
         print(self.EOPT)
         print()
+
+    def pm_forward_to_goal(self):
+        pass
     
     def generate_one_shot(self):
         best_strategy = None
@@ -171,12 +174,28 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 5
-K = 2
+N = 6
+K = 3
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
+
+    for i in range(100_000):
+        K = np.random.randint(N) + 1
+        kofn = KOFN(K, N)
+        kofn.init_distribution()
+        kofn.brute_force_OPT()
+
+        if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
+            kofn.print_OPT()
+            sys.exit(0)
+        
+        if i % 1000 == 0:
+            print(f"----------------[{i}]----------------")
+    
+    sys.exit(0)
+
     try:
         for _ in range(100_000):
             K = np.random.randint(N) + 1
@@ -212,7 +231,7 @@ if __name__ == '__main__':
                     max_diff_instance = copy.deepcopy(kofn)
 
                 if i % 1000 == 0:
-                    print(f"-------------[gen {_}, {i} -> {round(max_diff, 5)}]-------------")
+                    print(f"-------------[gen {_}, K = {max_diff_instance.k} {i} -> {round(max_diff, 5)}]-------------")
                 
                 i += 1
 
