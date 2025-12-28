@@ -174,15 +174,14 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 6
-K = 3
+N = 7
+K = 4
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
 
     for i in range(100_000):
-        K = np.random.randint(N) + 1
         kofn = KOFN(K, N)
         kofn.init_distribution()
         kofn.brute_force_OPT()
