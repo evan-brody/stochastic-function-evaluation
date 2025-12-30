@@ -14,9 +14,15 @@ class KOFN:
         self.k_bar = self.n - self.k + 1
 
         self.unordered_threshold = min(self.k, self.k_bar)
-        self.unordered_threshold_visual = np.array([0] * N)
-        self.unordered_threshold_visual[:self.unordered_threshold] = 1
-        self.unordered_threshold_visual = tuple([ int(b) for b in self.unordered_threshold_visual ])
+        self.unordered_threshold_2 = max(self.k, self.k_bar)
+
+        self.unordered_threshold_visual = [0] * N
+        for k in range(self.unordered_threshold):
+            self.unordered_threshold_visual[k] = 2
+        for k in range(self.unordered_threshold, self.unordered_threshold_2):
+            self.unordered_threshold_visual[k] = 1
+
+        self.unordered_threshold_visual = tuple(self.unordered_threshold_visual)
 
         # self.init_distribution()
     
@@ -234,8 +240,10 @@ if __name__ == '__main__':
         kofn.brute_force_OPT()
 
         if not kofn.check_OPT_extremal():
-            print(); print(kofn.p); print()
+            print(f'K = {kofn.k}'); print()
+            print(kofn.p); print()
             kofn.print_OPT()
+            kofn.expected_cost_printing(kofn.OPT)
             sys.exit(0)
 
         if i % 100 == 0:
