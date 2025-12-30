@@ -166,9 +166,10 @@ class KOFN:
         print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
     
-    def check_OPT_extremal(self):
+    def check_strategy_extremal(self, strategy):
         crossover = max(self.k, self.k_bar)
-        starter = set(self.OPT[:crossover])
+        starter = set(strategy[:crossover])
+
         all_tests = set(range(self.n))
         not_in_starter = all_tests.difference(starter)
 
@@ -179,14 +180,17 @@ class KOFN:
             return False
 
         for k in range(crossover, self.n):
-            if self.OPT[k] == upper:
+            if strategy[k] == upper:
                 upper -= 1
-            elif self.OPT[k] == lower:
+            elif strategy[k] == lower:
                 lower += 1
             else:
                 return False
         
         return True
+    
+    def check_OPT_extremal(self):
+        return self.check_strategy_extremal(self.OPT)
     
     def diff(self):
         return 0
@@ -211,7 +215,8 @@ if __name__ == '__main__':
     max_diff = float('-inf')
     max_diff_instance = None
 
-    for i in range(100_000):
+    for i in range(1_000_000):
+        K = np.random.randint(N) + 1
         kofn = KOFN(K, N)
         kofn.init_distribution()
         kofn.brute_force_OPT()
