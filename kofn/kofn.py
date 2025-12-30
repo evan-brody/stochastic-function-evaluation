@@ -193,7 +193,16 @@ class KOFN:
         return True
     
     def check_OPT_extremal(self):
-        return self.check_strategy_extremal(self.OPT)
+        res = self.check_strategy_extremal(self.OPT)
+        if res: return True
+
+        if all(self.p[j] >= 0.5 for j in range(self.n)):
+            return True
+        
+        if all(self.p[j] <= 0.5 for j in range(self.n)):
+            return True
+
+        return False
     
     def diff(self):
         return 0
@@ -218,7 +227,7 @@ if __name__ == '__main__':
     max_diff = float('-inf')
     max_diff_instance = None
 
-    for i in range(1_000_000):
+    for _ in range(10_000_000):
         K = np.random.randint(2, N)
         kofn = KOFN(K, N)
         kofn.init_distribution()
@@ -231,6 +240,7 @@ if __name__ == '__main__':
 
         if i % 100 == 0:
             print(f"----------------[{i}]----------------")
+        i += 1
     
     sys.exit(0)
 
