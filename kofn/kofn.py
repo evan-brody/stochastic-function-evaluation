@@ -106,6 +106,7 @@ class KOFN:
                 ones_count[l] -= ones_count[l] * self.p[j]
                 if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
 
+            print(f'Choice: {self.p[j]:.2f}')
             [ print(i, end='\t') for i in one_indices ]; print()
             [ print(round(f, 2), end='\t') for f in ones_count[:step + 1] ]; print()
             print('============[ end of 1 ]============')
@@ -165,6 +166,28 @@ class KOFN:
         print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
     
+    def check_OPT_extremal(self):
+        crossover = max(self.k, self.k_bar)
+        starter = set(self.OPT[:crossover])
+        all_tests = set(range(self.n))
+        not_in_starter = all_tests.difference(starter)
+
+        upper = max(not_in_starter)
+        lower = min(not_in_starter)
+
+        if upper - lower + 1 != len(not_in_starter):
+            return False
+
+        for k in range(crossover, self.n):
+            if self.OPT[k] == upper:
+                upper -= 1
+            elif self.OPT[k] == lower:
+                lower += 1
+            else:
+                return False
+        
+        return True
+    
     def diff(self):
         return 0
 
@@ -181,8 +204,8 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 9
-K = 5
+N = 7
+K = 4
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -193,11 +216,12 @@ if __name__ == '__main__':
         kofn.init_distribution()
         kofn.brute_force_OPT()
 
-        if not array_is_sorted(kofn.OPT[max(kofn.k, kofn.k_bar):]):
+        if not kofn.check_OPT_extremal():
+            print(); print(kofn.p); print()
             kofn.print_OPT()
             sys.exit(0)
-        
-        if i % 1000 == 0:
+
+        if i % 100 == 0:
             print(f"----------------[{i}]----------------")
     
     sys.exit(0)
