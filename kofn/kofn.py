@@ -216,7 +216,7 @@ if __name__ == '__main__':
     max_diff_instance = None
 
     for i in range(1_000_000):
-        K = np.random.randint(N) + 1
+        K = np.random.randint(1, N)
         kofn = KOFN(K, N)
         kofn.init_distribution()
         kofn.brute_force_OPT()
