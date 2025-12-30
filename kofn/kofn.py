@@ -13,10 +13,10 @@ class KOFN:
         self.n = n
         self.k_bar = self.n - self.k + 1
 
-        self.unordered_threshold = min(K, N - K + 1)
-        self.unordered_threshold_visual = [0] * N
-        self.unordered_threshold_visual[min(K, N - K + 1) - 1] = 1
-        self.unordered_threshold_visual = tuple(self.unordered_threshold_visual)
+        self.unordered_threshold = min(self.k, self.k_bar)
+        self.unordered_threshold_visual = np.array([0] * N)
+        self.unordered_threshold_visual[:self.unordered_threshold] = 1
+        self.unordered_threshold_visual = tuple([ int(b) for b in self.unordered_threshold_visual ])
 
         # self.init_distribution()
     
@@ -168,7 +168,7 @@ class KOFN:
     
     def check_strategy_extremal(self, strategy):
         if self.k == 1 or self.k == self.n: return True
-        
+
         crossover = max(self.k, self.k_bar)
         starter = set(strategy[:crossover])
 
