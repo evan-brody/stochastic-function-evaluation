@@ -89,6 +89,20 @@ class KOFN:
 
         return cost
 
+    def find_pr_one_zero(self):
+        # ones_count[i] stores Pr[have i ones]
+        ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
+        ones_count[0] = 1.0
+
+        for j in range(self.n):
+            # Move probability mass forward
+            for l in range(self.n, -1, -1):
+                ones_count[l] -= ones_count[l] * self.p[j]
+                if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
+
+        self.pr_f_one = sum(ones_count[self.k:])
+        self.pr_f_zero = sum(ones_count[:self.k])
+
     def expected_cost_printing(self, strategy):
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
@@ -142,6 +156,34 @@ class KOFN:
                     self.OPT = this_permutation
 
         self.OPT = tuple(self.OPT)
+
+    def always_sorted_ordered(self):
+        threshold = max(self.k, self.k_bar)
+        nondecreasing = self.k <= self.k_bar
+
+        tests_set = set(range(self.n))
+
+        # we can sort tests before the threshold
+        for starting in it.combinations(range(self.n), threshold):
+            starting = sorted(starting, reverse=nondecreasing)
+            remaining = tests_set.difference(starting)
+
+            subset_OPT = None
+            subset_EOPT = float('inf')
+
+            for ending in it.permutations(remaining):
+                this_permutation = starting + list(ending)
+                this_permutation_cost = self.expected_cost(this_permutation)
+                if this_permutation_cost < subset_EOPT:
+                    subset_EOPT = this_permutation_cost
+                    subset_OPT = this_permutation
+            
+            if not array_is_sorted(subset_OPT[threshold:]):
+                print(self.p)
+                print(subset_OPT)
+                print(subset_EOPT)
+
+                sys.exit(0)
 
     def print_OPT(self):
         print(self.unordered_threshold_visual)
@@ -209,6 +251,16 @@ class KOFN:
         #     return True
 
         return False
+
+    def OPT_unordered_biased(self):
+        threshold = max(self.k, self.k_bar)
+        upper = all(self.p[j] >= 0.5 for j in self.OPT[:threshold])
+        lower = all(self.p[j] <= 0.5 for j in self.OPT[:threshold])
+
+        return lower or upper
+
+    def OPT_sorted_ordered(self):
+        return array_is_sorted(self.OPT[max(self.k, self.k_bar):])
     
     def sorted_strategy(self):
         self.sorted_ascending = tuple(range(self.n))
@@ -217,12 +269,19 @@ class KOFN:
         self.sorted_ascending_cost = self.expected_cost(self.sorted_ascending)
         self.sorted_descending_cost = self.expected_cost(self.sorted_descending)
 
-        if self.sorted_ascending_cost <= self.sorted_descending_cost:
+        if self.sorted_ascending_cost <= self.sorted_descending_cost:            
             self.sorted = self.sorted_ascending
             self.sorted_cost = self.sorted_ascending_cost
         else:
             self.sorted = self.sorted_descending
             self.sorted_cost = self.sorted_descending_cost
+    
+    # disproved both ways
+    def sorted_by_f_pr(self):
+        zero = array_non_decreasing(self.sorted) and self.pr_f_zero >= self.pr_f_one
+        one = array_non_increasing(self.sorted) and self.pr_f_one >= self.pr_f_zero
+        self.is_sorted_by_f_pr = zero or one
+        return self.is_sorted_by_f_pr
     
     def print_sorted(self):
         print(self.unordered_threshold_visual)
@@ -231,9 +290,19 @@ class KOFN:
         print(self.sorted_cost); print()
     
     def diff(self):
-        self.brute_force_OPT()
+        self.find_pr_one_zero()
         self.sorted_strategy()
-        return self.sorted_cost - self.EOPT
+        self.sorted_by_f_pr()
+        if self.is_sorted_by_f_pr:
+            return -1
+        return abs(self.pr_f_one - self.pr_f_zero)
+
+    def diff_info(self):
+        print(f'K = {self.k}'); print()
+        print([ round(float(f), 3) for f in self.p ]); print()
+        self.print_sorted()
+        print(self.pr_f_one)
+        print(self.pr_f_zero)
 
 
 def array_non_decreasing(a):
@@ -247,9 +316,9 @@ def array_is_sorted(a):
 
 
 GENERATION_SIZE = 1000
-GENERATION_COUNT = 100_000
-N = 11
-K = 6
+GENERATION_COUNT = 10_000
+N = 7
+K = 4
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -272,7 +341,22 @@ if __name__ == '__main__':
     #     # K = np.random.randint(2, N)
     #     kofn = KOFN(K, N)
     #     kofn.init_distribution()
+    #     kofn.find_pr_one_zero()
+    #     kofn.sorted_strategy()
     #     # kofn.brute_force_OPT()
+
+    #     # kofn.always_sorted_ordered()
+
+    #     if not kofn.sorted_by_f_pr():
+    #         print(f'K = {kofn.k}'); print()
+    #         print(kofn.p); print()
+    #         kofn.print_sorted()
+    #         print(kofn.pr_f_one)
+    #         print(kofn.pr_f_zero)
+    #         # kofn.print_OPT()
+    #         # kofn.expected_cost_printing(kofn.OPT)
+
+    #         sys.exit(0)
 
     #     # if not kofn.check_OPT_extremal():
     #     #     print(f'K = {kofn.k}'); print()
@@ -281,8 +365,8 @@ if __name__ == '__main__':
     #     #     kofn.expected_cost_printing(kofn.OPT)
     #     #     sys.exit(0)
 
-    #     if i % 100 == 0:
-    #         print(f"----------------[{i}]----------------")
+    #     if i % 1000 == 0:
+    #         print(f"----------------[K = {kofn.k}, {i}]----------------")
     #     i += 1
     
     # sys.exit(0)
@@ -292,9 +376,6 @@ if __name__ == '__main__':
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
-
-            # kofn.brute_force_OPT()
-            # kofn.generate_one_shot()
 
             diff = kofn.diff()
             if diff > max_diff:
@@ -313,9 +394,6 @@ if __name__ == '__main__':
                 kofn.init_child_distribution(current_parent.p)
                 # kofn.nudge_k()
 
-                kofn.brute_force_OPT()
-                kofn.generate_one_shot()
-
                 diff = kofn.diff()
                 if diff > max_diff:
                     max_diff = diff
@@ -328,10 +406,8 @@ if __name__ == '__main__':
 
         print()
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_OPT(); print()
-        max_diff_instance.print_sorted()
+        max_diff_instance.diff_info()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(f"max diff: {max_diff}"); print()
-        max_diff_instance.print_OPT(); print()
-        max_diff_instance.print_sorted()
+        max_diff_instance.diff_info()
