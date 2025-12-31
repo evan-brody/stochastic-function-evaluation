@@ -371,6 +371,16 @@ if __name__ == '__main__':
     
     # sys.exit(0)
 
+    a = KOFN(4, 7)
+    z = 0.751
+    a.p = [0.0] * 3 + [z] * 4
+    a.sorted_strategy()
+    a.find_pr_one_zero()
+    a.sorted_by_f_pr()
+    a.diff_info()
+
+    sys.exit(0)
+
     try:
         for _ in range(10_000_000):
             # K = np.random.randint(N) + 1
