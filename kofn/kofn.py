@@ -185,8 +185,8 @@ class KOFN:
         upper = max(not_in_starter)
         lower = min(not_in_starter)
 
-        if upper - lower + 1 != len(not_in_starter):
-            return False
+        # if upper - lower + 1 != len(not_in_starter):
+        #     return False
 
         for k in range(crossover, self.n):
             if strategy[k] == upper:
@@ -202,16 +202,38 @@ class KOFN:
         res = self.check_strategy_extremal(self.OPT)
         if res: return True
 
-        if all(self.p[j] >= 0.5 for j in range(self.n)):
-            return True
+        # if all(self.p[j] >= 0.5 for j in range(self.n)):
+        #     return True
         
-        if all(self.p[j] <= 0.5 for j in range(self.n)):
-            return True
+        # if all(self.p[j] <= 0.5 for j in range(self.n)):
+        #     return True
 
         return False
     
+    def sorted_strategy(self):
+        self.sorted_ascending = tuple(range(self.n))
+        self.sorted_descending = tuple(list(range(self.n))[::-1])
+
+        self.sorted_ascending_cost = self.expected_cost(self.sorted_ascending)
+        self.sorted_descending_cost = self.expected_cost(self.sorted_descending)
+
+        if self.sorted_ascending_cost <= self.sorted_descending_cost:
+            self.sorted = self.sorted_ascending
+            self.sorted_cost = self.sorted_ascending_cost
+        else:
+            self.sorted = self.sorted_descending
+            self.sorted_cost = self.sorted_descending_cost
+    
+    def print_sorted(self):
+        print(self.unordered_threshold_visual)
+        print(tuple(self.sorted))
+        print(tuple([ float(round(self.p[j], 2)) for j in self.sorted ]))
+        print(self.sorted_cost); print()
+    
     def diff(self):
-        return 0
+        self.brute_force_OPT()
+        self.sorted_strategy()
+        return self.sorted_cost - self.EOPT
 
 
 def array_non_decreasing(a):
@@ -226,48 +248,61 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-N = 7
-K = 4
+N = 11
+K = 6
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
 
-    for _ in range(10_000_000):
-        K = np.random.randint(2, N)
-        kofn = KOFN(K, N)
-        kofn.init_distribution()
-        kofn.brute_force_OPT()
+    # a = KOFN(5, 7)
+    # a.p = [0.38403138, 0.69696066, 0.74100966, 0.74862645, 0.77259381, 0.79234456, 0.82062775]
+    # a.brute_force_OPT()
+    # a.alternate_strategy = (2, 3, 4, 5, 6, 1, 0)
+    # a.alternate_strategy_cost = a.expected_cost(a.alternate_strategy)
+    # a.expected_cost_printing(a.alternate_strategy)
+    # a.expected_cost_printing(a.OPT)
 
-        if not kofn.check_OPT_extremal():
-            print(f'K = {kofn.k}'); print()
-            print(kofn.p); print()
-            kofn.print_OPT()
-            kofn.expected_cost_printing(kofn.OPT)
-            sys.exit(0)
+    # print(a.EOPT)
+    # print(a.alternate_strategy_cost)
 
-        if i % 100 == 0:
-            print(f"----------------[{i}]----------------")
-        i += 1
+    # sys.exit(0)
+
+    # for _ in range(10_000_000):
+    #     # K = np.random.randint(2, N)
+    #     kofn = KOFN(K, N)
+    #     kofn.init_distribution()
+    #     # kofn.brute_force_OPT()
+
+    #     # if not kofn.check_OPT_extremal():
+    #     #     print(f'K = {kofn.k}'); print()
+    #     #     print(kofn.p); print()
+    #     #     kofn.print_OPT()
+    #     #     kofn.expected_cost_printing(kofn.OPT)
+    #     #     sys.exit(0)
+
+    #     if i % 100 == 0:
+    #         print(f"----------------[{i}]----------------")
+    #     i += 1
     
-    sys.exit(0)
+    # sys.exit(0)
 
     try:
-        for _ in range(100_000):
-            K = np.random.randint(N) + 1
+        for _ in range(10_000_000):
+            # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
 
-            kofn.brute_force_OPT()
-            kofn.generate_one_shot()
+            # kofn.brute_force_OPT()
+            # kofn.generate_one_shot()
 
             diff = kofn.diff()
             if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(kofn)
 
-            if i % 1000 == 0:
-                print(f"-------------[{i} -> {round(max_diff, 5)}]-------------")
+            if i % 10 == 0:
+                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
             
             i += 1
         
@@ -276,7 +311,7 @@ if __name__ == '__main__':
             for __ in range(GENERATION_SIZE):
                 kofn = KOFN(current_parent.k, N)
                 kofn.init_child_distribution(current_parent.p)
-                kofn.nudge_k()
+                # kofn.nudge_k()
 
                 kofn.brute_force_OPT()
                 kofn.generate_one_shot()
@@ -286,17 +321,17 @@ if __name__ == '__main__':
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(kofn)
 
-                if i % 1000 == 0:
-                    print(f"-------------[gen {_}, K = {max_diff_instance.k} {i} -> {round(max_diff, 5)}]-------------")
+                if i % 100 == 0:
+                    print(f"-------------[gen {_}, K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
                 
                 i += 1
 
         print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
-        max_diff_instance.print_one_shot()
+        max_diff_instance.print_sorted()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.print_OPT(); print()
-        max_diff_instance.print_one_shot()
+        max_diff_instance.print_sorted()
