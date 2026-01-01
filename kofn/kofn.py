@@ -290,19 +290,18 @@ class KOFN:
         print(self.sorted_cost); print()
     
     def diff(self):
-        self.find_pr_one_zero()
+        self.brute_force_OPT()
         self.sorted_strategy()
-        self.sorted_by_f_pr()
-        if self.is_sorted_by_f_pr:
-            return -1
-        return abs(self.pr_f_one - self.pr_f_zero)
+        return self.sorted_cost - self.EOPT
 
     def diff_info(self):
-        print(f'K = {self.k}'); print()
-        print([ round(float(f), 3) for f in self.p ]); print()
+        self.print_OPT()
         self.print_sorted()
-        print(self.pr_f_one)
-        print(self.pr_f_zero)
+        # print(f'K = {self.k}'); print()
+        # print([ round(float(f), 3) for f in self.p ]); print()
+        # self.print_sorted()
+        # print(self.pr_f_one)
+        # print(self.pr_f_zero)
 
 
 def array_non_decreasing(a):
@@ -317,8 +316,9 @@ def array_is_sorted(a):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
-N = 7
-K = 4
+PRINT_PER = 1
+N = 13
+K = 7
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
@@ -371,16 +371,6 @@ if __name__ == '__main__':
     
     # sys.exit(0)
 
-    a = KOFN(4, 7)
-    z = 0.751
-    a.p = [0.0] * 3 + [z] * 4
-    a.sorted_strategy()
-    a.find_pr_one_zero()
-    a.sorted_by_f_pr()
-    a.diff_info()
-
-    sys.exit(0)
-
     try:
         for _ in range(10_000_000):
             # K = np.random.randint(N) + 1
@@ -392,7 +382,7 @@ if __name__ == '__main__':
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(kofn)
 
-            if i % 10 == 0:
+            if i % PRINT_PER == 0:
                 print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
             
             i += 1
@@ -409,7 +399,7 @@ if __name__ == '__main__':
                     max_diff = diff
                     max_diff_instance = copy.deepcopy(kofn)
 
-                if i % 100 == 0:
+                if i % PRINT_PER == 0:
                     print(f"-------------[gen {_}, K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
                 
                 i += 1
