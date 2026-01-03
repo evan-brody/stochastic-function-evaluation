@@ -139,13 +139,13 @@ class KOFN:
         self.EOPT = float('inf')
 
         threshold = max(self.k, self.k_bar)
-        nondecreasing = self.k <= self.k_bar
+        starter_nonincreasing = self.k <= self.k_bar
 
         tests_set = set(range(self.n))
 
         # we can sort tests before the threshold
         for starting in it.combinations(range(self.n), threshold):
-            starting = sorted(starting, reverse=nondecreasing)
+            starting = sorted(starting, reverse=starter_nonincreasing)
             remaining = tests_set.difference(starting)
 
             for ending in it.permutations(remaining):
