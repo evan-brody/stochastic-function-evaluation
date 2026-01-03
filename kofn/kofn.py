@@ -292,13 +292,12 @@ class KOFN:
     def diff(self):
         self.brute_force_OPT()
         self.generate_one_shot()
-        if self.one_shot_cost - self.EOPT < 0.001:
-            return -100
-        return 0.001 - (self.one_shot_cost - self.EOPT)
+        return self.one_shot_cost - self.EOPT
 
     def diff_info(self):
         self.print_OPT()
         self.print_one_shot()
+        print(f'Sum: {sum(self.p)}')
 
 
 def array_non_decreasing(a):
@@ -314,13 +313,13 @@ def array_is_sorted(a):
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
 PRINT_PER = 1
-N = 5
-K = 2
+N = 7
+K = 3
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
-    
+
     try:
         for _ in range(10_000_000):
             # K = np.random.randint(N) + 1
