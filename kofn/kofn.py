@@ -310,18 +310,18 @@ def array_is_sorted(a):
     return array_non_decreasing(a) or array_non_increasing(a)
 
 
-GENERATION_SIZE = 1000
-GENERATION_COUNT = 10_000
-PRINT_PER = 1
-N = 7
-K = 3
+GENERATION_SIZE = 100
+GENERATION_COUNT = 100
+PRINT_PER = 100
+N = 8
+K = 4
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
 
     try:
-        for _ in range(10_000_000):
+        for _ in range(100_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
