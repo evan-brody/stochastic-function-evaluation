@@ -291,17 +291,14 @@ class KOFN:
     
     def diff(self):
         self.brute_force_OPT()
-        self.sorted_strategy()
-        return self.sorted_cost - self.EOPT
+        self.generate_one_shot()
+        if self.one_shot_cost - self.EOPT < 0.001:
+            return -100
+        return 0.001 - (self.one_shot_cost - self.EOPT)
 
     def diff_info(self):
         self.print_OPT()
-        self.print_sorted()
-        # print(f'K = {self.k}'); print()
-        # print([ round(float(f), 3) for f in self.p ]); print()
-        # self.print_sorted()
-        # print(self.pr_f_one)
-        # print(self.pr_f_zero)
+        self.print_one_shot()
 
 
 def array_non_decreasing(a):
@@ -317,60 +314,13 @@ def array_is_sorted(a):
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
 PRINT_PER = 1
-N = 13
-K = 7
+N = 5
+K = 2
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
-
-    # a = KOFN(5, 7)
-    # a.p = [0.38403138, 0.69696066, 0.74100966, 0.74862645, 0.77259381, 0.79234456, 0.82062775]
-    # a.brute_force_OPT()
-    # a.alternate_strategy = (2, 3, 4, 5, 6, 1, 0)
-    # a.alternate_strategy_cost = a.expected_cost(a.alternate_strategy)
-    # a.expected_cost_printing(a.alternate_strategy)
-    # a.expected_cost_printing(a.OPT)
-
-    # print(a.EOPT)
-    # print(a.alternate_strategy_cost)
-
-    # sys.exit(0)
-
-    # for _ in range(10_000_000):
-    #     # K = np.random.randint(2, N)
-    #     kofn = KOFN(K, N)
-    #     kofn.init_distribution()
-    #     kofn.find_pr_one_zero()
-    #     kofn.sorted_strategy()
-    #     # kofn.brute_force_OPT()
-
-    #     # kofn.always_sorted_ordered()
-
-    #     if not kofn.sorted_by_f_pr():
-    #         print(f'K = {kofn.k}'); print()
-    #         print(kofn.p); print()
-    #         kofn.print_sorted()
-    #         print(kofn.pr_f_one)
-    #         print(kofn.pr_f_zero)
-    #         # kofn.print_OPT()
-    #         # kofn.expected_cost_printing(kofn.OPT)
-
-    #         sys.exit(0)
-
-    #     # if not kofn.check_OPT_extremal():
-    #     #     print(f'K = {kofn.k}'); print()
-    #     #     print(kofn.p); print()
-    #     #     kofn.print_OPT()
-    #     #     kofn.expected_cost_printing(kofn.OPT)
-    #     #     sys.exit(0)
-
-    #     if i % 1000 == 0:
-    #         print(f"----------------[K = {kofn.k}, {i}]----------------")
-    #     i += 1
     
-    # sys.exit(0)
-
     try:
         for _ in range(10_000_000):
             # K = np.random.randint(N) + 1
