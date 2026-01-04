@@ -290,10 +290,10 @@ class KOFN:
 
 
 GENERATION_SIZE = 1000
-GENERATION_COUNT = 10_000
+GENERATION_COUNT = 1000
 PRINT_PER = 1000
-N = 5
-K = 2
+N = 8
+K = 4
 
 # Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
@@ -302,7 +302,7 @@ if __name__ == '__main__':
     max_diff_instance = None
 
     try:
-        for _ in range(10_000_000):
+        for _ in range(1_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
