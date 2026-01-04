@@ -297,7 +297,7 @@ class KOFN:
     def diff_info(self):
         self.print_OPT()
         self.print_one_shot()
-        print(f'Sum: {sum(self.p)}')
+        print(f'Sum: {sum([ 2.0 * self.p[j] - 1.0 for j in range(self.n) ])}')
 
 
 def array_non_decreasing(a):
