@@ -174,7 +174,6 @@ class KOFN:
 
     # Prints out information about OPT
     def print_OPT(self):
-        print(self.unordered_threshold_visual)
         print(self.OPT)
         print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
         print(self.EOPT); print()
@@ -200,7 +199,6 @@ class KOFN:
     
     # Prints information about the above strategy
     def print_one_shot(self):
-        print(self.unordered_threshold_visual)
         print(tuple(self.one_shot))
         print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
