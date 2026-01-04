@@ -7,58 +7,66 @@ import copy
 import itertools as it
 import sys
 
+# Returns a vector with numbers perturbed a small amount from 1
+def get_scale_vector(n):
+    scale_vector = np.ones(shape=(n,), dtype=float)
+
+    for j in range(n):
+        scale_vector[j] += np.random.normal(scale=0.01)
+
+    return scale_vector
+
+# Returns the 1-normalized form of the given vector
+def normalize(vector):
+    vector[:] /= sum(vector)
+    return vector
+
+# Returns the given vector with each entry clamped to [0, 1]
+def clamp(vector):
+    for j in range(len(vector)):
+        vector[j] = min(max(0.0, vector[j]), 1.0)
+    
+    return vector
+
+
+def array_non_decreasing(a):
+    return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
+
+def array_non_increasing(a):
+    return all(a[i] >= a[i + 1] for i in range(len(a) - 1))
+
+def array_is_sorted(a):
+    return array_non_decreasing(a) or array_non_increasing(a)
+
+
+# Simulates an instance of nonadaptive k-of-n evaluation
 class KOFN:
     def __init__(self, k, n):
         self.k = k
         self.n = n
         self.k_bar = self.n - self.k + 1
-
-        self.unordered_threshold = min(self.k, self.k_bar)
-        self.unordered_threshold_2 = max(self.k, self.k_bar)
-
-        self.unordered_threshold_visual = [0] * N
-        for k in range(self.unordered_threshold):
-            self.unordered_threshold_visual[k] = 2
-        for k in range(self.unordered_threshold, self.unordered_threshold_2):
-            self.unordered_threshold_visual[k] = 1
-
-        self.unordered_threshold_visual = tuple(self.unordered_threshold_visual)
-
-        # self.init_distribution()
     
-    def init_distribution(self):
-        self.p = np.random.rand(self.n)
-        self.p.sort()
+    # Useful for inducing a non-sorted OPT
+    def halve_distribution(self):
+        self.p[:] /= 2
     
-    def get_scale_vector(self):
-        scale_vector = np.ones(shape=(self.n,), dtype=float)
-
-        for j in range(self.n):
-            scale_vector[j] += np.random.normal(scale=0.01)
-
-        return scale_vector
+    # Initializes a product distribution over the variables
+    # If parent distribution is None, then each pi is drawn from a uniform distribution on [0, 1]
+    # Otherwise, initializes a distribution that deviates slightly from the parent's
+    def init_distribution(self, parent_distribution=None):
+        if parent_distribution is None:
+            self.p = np.random.rand(self.n)
+            self.p.sort()
+        else:
+            new_distribution = copy.deepcopy(parent_distribution)
+            scale_vector = get_scale_vector(self.n)
+            for j in range(self.n):
+                new_distribution[j] *= scale_vector[j]
+            
+            new_coins = clamp(new_coins)
+            self.p = sorted(new_coins)
     
-    def normalize(self, vector):
-        sv = sum(vector)
-        vector[:] /= sv
-
-        return vector
-    
-    def clamp(self, vector):
-        for j in range(len(vector)):
-            vector[j] = min(1, vector[j])
-        
-        return vector
-    
-    def init_child_distribution(self, parent_distribution):
-        new_coins = copy.deepcopy(parent_distribution)
-        scale_vector = self.get_scale_vector()
-        for j in range(self.n):
-            new_coins[j] *= scale_vector[j]
-        
-        new_coins = self.clamp(new_coins)
-        self.p = sorted(new_coins)
-        
+    # Has a small chance to decrement or increment k
     def nudge_k(self):
         val = np.random.rand()
         if val < 0.05:
@@ -66,6 +74,7 @@ class KOFN:
         elif val > 0.95:
             self.k += 1
     
+    # Returns the expected cost of a given nonadaptive strategy
     def expected_cost(self, strategy):
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
@@ -89,6 +98,7 @@ class KOFN:
 
         return cost
 
+    # Finds the probability that f(x) = 0 and that f(x) = 1
     def find_pr_one_zero(self):
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
@@ -103,6 +113,10 @@ class KOFN:
         self.pr_f_one = sum(ones_count[self.k:])
         self.pr_f_zero = sum(ones_count[:self.k])
 
+        return self.pr_f_zero, self.pr_f_one
+
+    # Prints out a visual of the dynamic programming table used to
+    # calculate the expected cost at each step
     def expected_cost_printing(self, strategy):
         # ones_count[i] stores Pr[have i ones]
         ones_count = np.zeros(shape=(self.n + 1,), dtype=float)
@@ -134,19 +148,20 @@ class KOFN:
             [ print(round(f, 2), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
             print('============[ end of 0 ]============'); print()
     
+    # Brute force search for the optimal nonadaptive strategy
     def brute_force_OPT(self):
         self.OPT = None
         self.EOPT = float('inf')
 
+        # Prior to this index, we can sort the coins    
         threshold = max(self.k, self.k_bar)
         starter_nonincreasing = self.k <= self.k_bar
 
-        tests_set = set(range(self.n))
+        all_tests_set = set(range(self.n))
 
-        # we can sort tests before the threshold
         for starting in it.combinations(range(self.n), threshold):
             starting = sorted(starting, reverse=starter_nonincreasing)
-            remaining = tests_set.difference(starting)
+            remaining = all_tests_set.difference(starting)
 
             for ending in it.permutations(remaining):
                 this_permutation = starting + list(ending)
@@ -157,40 +172,15 @@ class KOFN:
 
         self.OPT = tuple(self.OPT)
 
-    def always_sorted_ordered(self):
-        threshold = max(self.k, self.k_bar)
-        nondecreasing = self.k <= self.k_bar
-
-        tests_set = set(range(self.n))
-
-        # we can sort tests before the threshold
-        for starting in it.combinations(range(self.n), threshold):
-            starting = sorted(starting, reverse=nondecreasing)
-            remaining = tests_set.difference(starting)
-
-            subset_OPT = None
-            subset_EOPT = float('inf')
-
-            for ending in it.permutations(remaining):
-                this_permutation = starting + list(ending)
-                this_permutation_cost = self.expected_cost(this_permutation)
-                if this_permutation_cost < subset_EOPT:
-                    subset_EOPT = this_permutation_cost
-                    subset_OPT = this_permutation
-            
-            if not array_is_sorted(subset_OPT[threshold:]):
-                print(self.p)
-                print(subset_OPT)
-                print(subset_EOPT)
-
-                sys.exit(0)
-
+    # Prints out information about OPT
     def print_OPT(self):
         print(self.unordered_threshold_visual)
         print(self.OPT)
         print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
         print(self.EOPT); print()
 
+    # Generates a nonadaptive strategy that starts with a sorted permutation
+    # then sorts the portion before max(k, kbar), if this is advantageous
     def generate_one_shot(self):
         best_strategy = None
         to_beat = float('inf')
@@ -208,12 +198,14 @@ class KOFN:
         self.one_shot = copy.deepcopy(best_strategy)
         self.one_shot_cost = to_beat
     
+    # Prints information about the above strategy
     def print_one_shot(self):
         print(self.unordered_threshold_visual)
         print(tuple(self.one_shot))
         print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
     
+    # Checks if a strategy always uses extremal variables
     def check_strategy_extremal(self, strategy):
         if self.k == 1 or self.k == self.n: return True
 
@@ -240,18 +232,15 @@ class KOFN:
         
         return True
     
+    # Checks if OPT always uses extremal variables
+    # DISPROVED
     def check_OPT_extremal(self):
         res = self.check_strategy_extremal(self.OPT)
         if res: return True
 
-        # if all(self.p[j] >= 0.5 for j in range(self.n)):
-        #     return True
-        
-        # if all(self.p[j] <= 0.5 for j in range(self.n)):
-        #     return True
-
         return False
 
+    # Checks if OPT only has variables on one side of 1/2
     def OPT_unordered_biased(self):
         threshold = max(self.k, self.k_bar)
         upper = all(self.p[j] >= 0.5 for j in self.OPT[:threshold])
@@ -259,9 +248,13 @@ class KOFN:
 
         return lower or upper
 
+    # Tests the conjecture that the fully ordered portion (after max(k, kbar)) of OPT is sorted
+    # OPEN
     def OPT_sorted_ordered(self):
         return array_is_sorted(self.OPT[max(self.k, self.k_bar):])
     
+    # Generates the best sorted strategy
+    # Useful when k = kbar
     def sorted_strategy(self):
         self.sorted_ascending = tuple(range(self.n))
         self.sorted_descending = tuple(list(range(self.n))[::-1])
@@ -276,54 +269,42 @@ class KOFN:
             self.sorted = self.sorted_descending
             self.sorted_cost = self.sorted_descending_cost
     
-    # disproved both ways
-    def sorted_by_f_pr(self):
-        zero = array_non_decreasing(self.sorted) and self.pr_f_zero >= self.pr_f_one
-        one = array_non_increasing(self.sorted) and self.pr_f_one >= self.pr_f_zero
-        self.is_sorted_by_f_pr = zero or one
-        return self.is_sorted_by_f_pr
-    
+    # Prints information about the above strategy
     def print_sorted(self):
-        print(self.unordered_threshold_visual)
         print(tuple(self.sorted))
         print(tuple([ float(round(self.p[j], 2)) for j in self.sorted ]))
         print(self.sorted_cost); print()
     
+    # Used in the evolutionary algorithm in main, which seeks to maximize the return value of this function
     def diff(self):
         self.brute_force_OPT()
         self.generate_one_shot()
+        return self.one_shot_cost - self.EOPT
         if self.one_shot_cost - self.EOPT < 0.001:
             return -100
         return -(self.one_shot_cost - self.EOPT - 0.001)
-
+    
+    # Prints information relevant to the evolutionary algorithm in main
     def diff_info(self):
         self.print_OPT()
         self.print_one_shot()
         print(f'Sum: {sum([ 2.0 * self.p[j] - 1.0 for j in range(self.n) ])}')
 
 
-def array_non_decreasing(a):
-    return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
-
-def array_non_increasing(a):
-    return all(a[i] >= a[i + 1] for i in range(len(a) - 1))
-
-def array_is_sorted(a):
-    return array_non_decreasing(a) or array_non_increasing(a)
-
-
-GENERATION_SIZE = 100
-GENERATION_COUNT = 1000
+GENERATION_SIZE = 1000
+GENERATION_COUNT = 10_000
 PRINT_PER = 1000
-N = 6
-K = 3
+N = 5
+K = 2
+
+# Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
 
     try:
-        for _ in range(1_000_000):
+        for _ in range(10_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
