@@ -292,7 +292,9 @@ class KOFN:
     def diff(self):
         self.brute_force_OPT()
         self.generate_one_shot()
-        return self.one_shot_cost - self.EOPT
+        if self.one_shot_cost - self.EOPT < 0.001:
+            return -100
+        return -(self.one_shot_cost - self.EOPT - 0.001)
 
     def diff_info(self):
         self.print_OPT()
@@ -311,17 +313,17 @@ def array_is_sorted(a):
 
 
 GENERATION_SIZE = 100
-GENERATION_COUNT = 100
-PRINT_PER = 100
-N = 8
-K = 4
+GENERATION_COUNT = 1000
+PRINT_PER = 1000
+N = 6
+K = 3
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
     max_diff_instance = None
 
     try:
-        for _ in range(100_000):
+        for _ in range(1_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
