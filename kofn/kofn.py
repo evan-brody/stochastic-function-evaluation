@@ -321,7 +321,7 @@ if __name__ == '__main__':
             current_parent = copy.deepcopy(max_diff_instance)
             for __ in range(GENERATION_SIZE):
                 kofn = KOFN(current_parent.k, N)
-                kofn.init_child_distribution(current_parent.p)
+                kofn.init_distribution(current_parent.p)
                 # kofn.nudge_k()
 
                 diff = kofn.diff()
