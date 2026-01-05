@@ -63,8 +63,8 @@ class KOFN:
             for j in range(self.n):
                 new_distribution[j] *= scale_vector[j]
             
-            new_coins = clamp(new_coins)
-            self.p = sorted(new_coins)
+            new_distribution = clamp(new_distribution)
+            self.p = sorted(new_distribution)
     
     # Has a small chance to decrement or increment k
     def nudge_k(self):
