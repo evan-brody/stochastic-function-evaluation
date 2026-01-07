@@ -12,7 +12,7 @@ def get_scale_vector(n):
     scale_vector = np.ones(shape=(n,), dtype=float)
 
     for j in range(n):
-        scale_vector[j] += np.random.normal(scale=0.01)
+        scale_vector[j] += np.random.normal(scale=0.001)
 
     return scale_vector
 
@@ -302,20 +302,23 @@ if __name__ == '__main__':
     max_diff_instance = None
 
     try:
-        for _ in range(1_000_000):
-            # K = np.random.randint(N) + 1
-            kofn = KOFN(K, N)
-            kofn.init_distribution()
+        # for _ in range(1_000_000):
+        #     # K = np.random.randint(N) + 1
+        #     kofn = KOFN(K, N)
+        #     kofn.init_distribution()
 
-            diff = kofn.diff()
-            if diff > max_diff:
-                max_diff = diff
-                max_diff_instance = copy.deepcopy(kofn)
+        #     diff = kofn.diff()
+        #     if diff > max_diff:
+        #         max_diff = diff
+        #         max_diff_instance = copy.deepcopy(kofn)
 
-            if i % PRINT_PER == 0:
-                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
+        #     if i % PRINT_PER == 0:
+        #         print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
             
-            i += 1
+        #     i += 1
+        
+        max_diff_instance = KOFN(4, 8)
+        max_diff_instance.p = [0.11, 0.31] + [0.42] * 6
         
         for _ in range(GENERATION_COUNT):
             current_parent = copy.deepcopy(max_diff_instance)
@@ -337,7 +340,17 @@ if __name__ == '__main__':
         print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.diff_info()
+
+        print()
+        for pi in max_diff_instance.p:
+            print(pi)
+        print()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.diff_info()
+
+        print()
+        for pi in max_diff_instance.p:
+            print(pi)
+        print()
