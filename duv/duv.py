@@ -293,16 +293,16 @@ class DUV:
 
         k = 0
 
-        # fixed first test
-        for c in range(self.d):
-            biases[c] *= self.distribution[self.AOPT_first_die][c]
-            self.greedy_terms[c][0] = biases[c]
-        self.greedy[0] = self.AOPT_first_die
-        self.greedy_cost += sum(biases)
-        k += 1
-        available[self.AOPT_first_die] = False
+        # # fixed first test
+        # for c in range(self.d):
+        #     biases[c] *= self.distribution[self.AOPT_first_die][c]
+        #     self.greedy_terms[c][0] = biases[c]
+        # self.greedy[0] = self.AOPT_first_die
+        # self.greedy_cost += sum(biases)
+        # k += 1
+        # available[self.AOPT_first_die] = False
 
-        while k < self.n - 1:
+        while k < self.n:
             best_test = None
             
             max_bias = float('-inf')
@@ -312,7 +312,8 @@ class DUV:
                     max_bias = biases[c]
                     max_color = c
 
-            self.boundable_indices[k] = max_color
+            if k < self.n - 1:
+                self.boundable_indices[k] = max_color
             
             min_max_color = None
             min_max_color_score = float('inf')
@@ -327,12 +328,26 @@ class DUV:
             
             best_test = min_max_color
 
+            # override for binary
+            if self.d == 2 and biases[0] == biases[1]:
+                best_test = None
+                best_score = float('-inf')
+                for j in range(self.n):
+                    if not available[j]: continue
+                    this_score = self.distribution[j][0]
+
+                    if this_score >= best_score:
+                        best_test = j
+                        best_score = this_score
+
             # update biases
             for c in range(self.d):
                 biases[c] *= self.distribution[best_test][c]
-                self.greedy_terms[c][k] = biases[c]
+                if k < self.n - 1:
+                    self.greedy_terms[c][k] = biases[c]
             self.greedy[k] = best_test
-            self.greedy_cost += sum(biases)
+            if k < self.n - 1:
+                self.greedy_cost += sum(biases)
             k += 1
 
             # update availability
@@ -371,6 +386,8 @@ class DUV:
                 self.AOPT_terms = copy.deepcopy(color_terms)
         
         self.AOPT += 1.0
+        
+        self.AOPT_lower_bound()
 
     def print_AOPT(self):
         print(f"E[AOPT]: {self.AOPT}")
@@ -379,6 +396,23 @@ class DUV:
             for c_term in self.AOPT_terms[c]:
                 print(round(c_term, 3), end='\t')
             print()
+    
+    def AOPT_lower_bound(self):
+        self.AOPT_terms = np.empty(shape=(self.d,self.n - 1), dtype=float)
+        self.AOPT = float('inf')
+
+        sorted_by = np.empty(shape=(self.d, self.n), dtype=int)
+        for c in range(self.d):
+            sorted_by[c] = np.argsort(self.distribution[:,c])
+
+        for c in range(self.d):
+            for i in range(self.n - 1):
+                new_factor = self.distribution[sorted_by[c]][i][c]
+                self.AOPT_terms[c][i] = new_factor
+                if i > 0:
+                    self.AOPT_terms[c][i] *= self.AOPT_terms[c][i - 1]
+
+        self.AOPT = sum([ sum(self.AOPT_terms[c][1:]) for c in range(self.d) ]) + 2.0
 
     def get_scale_vector(self):
         scale_vector = np.ones(shape=(self.d,), dtype=float)
@@ -456,6 +490,8 @@ class DUV:
         return score
 
     def diff(self):
+        return self.greedy_cost - self.AOPT
+
         change = 0.0
         for k in range(1, self.n - 1):
             bi = self.boundable_indices[k]
@@ -471,7 +507,7 @@ class DUV:
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (3, 9)
+DN = (2, 3)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
