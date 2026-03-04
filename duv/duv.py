@@ -507,7 +507,7 @@ class DUV:
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
-DN = (2, 3)
+DN = (2, 4)
 if __name__ == '__main__':
     i = 1
     max_diff = float('-inf')
