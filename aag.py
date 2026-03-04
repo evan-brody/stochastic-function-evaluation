@@ -5,7 +5,7 @@
 import numpy as np
 import copy
 
-N = 7
+N = 10
 
 def greedy_dpn(p):
     heads_sum = 0.0
@@ -99,6 +99,11 @@ def get_child_values(p):
 
     return new_p
 
+def get_p():
+    p = np.random.rand(N)
+    p.sort()
+
+    return p
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 100_000
@@ -108,7 +113,7 @@ if __name__ == '__main__':
     max_diff_instance = None
     try:
         for _ in range(1_00_000):
-            p = np.random.rand(N)
+            p = get_p()
 
             diff = test_values(p)
             if diff > max_diff:
