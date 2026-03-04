@@ -73,6 +73,11 @@ def test_values(p):
     
     return this_dp1 - this_dpn
 
+def get_values(p):
+    if dp1(p) <= 0 or dpn(p) >= 0:
+        print("???")
+    return float(dp1(p)), float(dpn(p))
+
 def get_scale_vector():
     scale_vector = np.ones((N,), dtype=float)
     scale_vector += np.random.normal(scale=0.01)
@@ -101,6 +106,8 @@ def get_child_values(p):
 
 def get_p():
     p = np.random.rand(N)
+    p[0] = p[0] / 2
+    p[N - 1] = p[N - 1] / 2 + 0.5
     p.sort()
 
     return p
@@ -118,7 +125,7 @@ if __name__ == '__main__':
             diff = test_values(p)
             if diff > max_diff:
                 max_diff = diff
-                max_diff_instance = copy.deepcopy(p )
+                max_diff_instance = copy.deepcopy(p)
 
             if i % 1000 == 0:
                 print(f"-------------[{i} -> {round(max_diff, 5)}]-------------")
@@ -140,9 +147,11 @@ if __name__ == '__main__':
                 
                 i += 1
 
-        print(p); print()
+        print(max_diff_instance); print()
         print(f"max diff: {max_diff}"); print()
+        print(f"values: {get_values(max_diff_instance)}")
     except KeyboardInterrupt:
         print("Interrupted."); print()
-        print(p); print()
+        print(max_diff_instance); print()
         print(f"max diff: {max_diff}"); print()
+        print(f"values: {get_values(max_diff_instance)}")
