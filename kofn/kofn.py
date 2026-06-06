@@ -28,13 +28,15 @@ def clamp(vector):
     
     return vector
 
-
+# Checks whether an array is non-decreasing
 def array_non_decreasing(a):
     return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
 
+# Checks whether an array is non-increasing
 def array_non_increasing(a):
     return all(a[i] >= a[i + 1] for i in range(len(a) - 1))
 
+# Checks whether an array is sorted in some fashion
 def array_is_sorted(a):
     return array_non_decreasing(a) or array_non_increasing(a)
 
@@ -175,7 +177,6 @@ class KOFN:
     # Prints out information about OPT
     def print_OPT(self):
         print(self.OPT)
-        self.print_squares(self.OPT)
         print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
         print(self.EOPT); print()
 
@@ -201,7 +202,6 @@ class KOFN:
     # Prints information about the above strategy
     def print_one_shot(self):
         print(tuple(self.one_shot))
-        self.print_squares(self.one_shot)
         print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
     
@@ -303,23 +303,17 @@ class KOFN:
     
     # Used in the evolutionary algorithm in main, which seeks to maximize the return value of this function
     def diff(self):
-        self.sorted_strategy()
-        self.find_products()
-        if not self.sorted_matches_products():
-            return abs(self.one_prod_total - self.zero_prod_total)
-        else:
-            return 0
+        self.generate_one_shot()
+        self.brute_force_OPT()
+
+        return self.one_shot_cost - self.EOPT
     
     # Prints information relevant to the evolutionary algorithm in main
     def diff_info(self):
-        print(self.one_prod_total)
-        print(self.zero_prod_total)
-
-        print(self.sorted)
-        print([ round(float(pi), 3) for pi in self.p ])
-        print()
-        print(self.expected_cost(self.sorted))
-        print(self.expected_cost(self.other_sorted))
+        self.print_one_shot()
+        self.print_OPT()
+        self.expected_cost_printing(self.one_shot)
+        self.expected_cost_printing(self.OPT)
     
     def print_squares(self, strategy):
         C = self.k_bar - self.k
@@ -333,10 +327,10 @@ class KOFN:
         print()
 
 GENERATION_SIZE = 1000
-GENERATION_COUNT = 1000
+GENERATION_COUNT = 10_000
 PRINT_PER = 1000
-K = 4
-N = 7
+K = 2
+N = 6
 
 # Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
@@ -360,15 +354,6 @@ if __name__ == '__main__':
             
             i += 1
         
-        # max_diff_instance = KOFN(4, 8)
-        # max_diff_instance.p = [0.11, 0.31] + [0.42] * 6
-
-        # max_diff_instance = KOFN(2, 4)
-        # max_diff_instance.p = [0.14693422491151095,
-        #                         0.2365113283041519,
-        #                         0.3054369068501011,
-        #                         0.30543723631372965]
-        
         for _ in range(GENERATION_COUNT):
             current_parent = copy.deepcopy(max_diff_instance)
             for __ in range(GENERATION_SIZE):
@@ -389,19 +374,7 @@ if __name__ == '__main__':
         print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.diff_info()
-
-        # print()
-        # for pi in max_diff_instance.p:
-        #     print(pi)
-        # print()
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.diff_info()
-        # max_diff_instance.print_squares(list(range(4))[::-1])
-        # print("--")
-
-        # print()
-        # for pi in max_diff_instance.p:
-        #     print(pi)
-        # print()
