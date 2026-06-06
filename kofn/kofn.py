@@ -374,6 +374,9 @@ if __name__ == '__main__':
         print()
         print(f"max diff: {max_diff}"); print()
         max_diff_instance.diff_info()
+        with open("final_instance.txt", "w") as f:
+            f.write(",".join(map(str, max_diff_instance.p)))
+
     except KeyboardInterrupt:
         print("Interrupted."); print()
         print(f"max diff: {max_diff}"); print()
