@@ -128,10 +128,10 @@ class KOFN:
         zero_indices = np.array([ i for i in range(self.n - self.k + 1) ])
 
         [ print(i, end='\t') for i in one_indices ]; print()
-        [ print(round(f, 2), end='\t') for f in ones_count[:1] ]; print()
+        [ print(round(f, 3), end='\t') for f in ones_count[:1] ]; print()
         print('============[ end of 1 ]============')
         [ print(i, end='\t') for i in zero_indices ]; print()
-        [ print(round(f, 2), end='\t') for f in ones_count[:1][::-1] ]; print()
+        [ print(round(f, 3), end='\t') for f in ones_count[:1][::-1] ]; print()
         print('============[ end of 0 ]============'); print()
 
         for step, j in enumerate(strategy):
@@ -142,12 +142,12 @@ class KOFN:
                 ones_count[l] -= ones_count[l] * self.p[j]
                 if l > 0: ones_count[l] += ones_count[l - 1] * self.p[j]
 
-            print(f'Choice: {self.p[j]:.2f}')
+            print(f'Choice: {self.p[j]:.3f}')
             [ print(i, end='\t') for i in one_indices ]; print()
-            [ print(round(f, 2), end='\t') for f in ones_count[:step + 1] ]; print()
+            [ print(round(f, 3), end='\t') for f in ones_count[:step + 1] ]; print()
             print('============[ end of 1 ]============')
             [ print(i, end='\t') for i in zero_indices ]; print()
-            [ print(round(f, 2), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
+            [ print(round(f, 3), end='\t') for f in ones_count[:step + 1][::-1] ]; print()
             print('============[ end of 0 ]============'); print()
     
     # Brute force search for the optimal nonadaptive strategy
@@ -177,7 +177,7 @@ class KOFN:
     # Prints out information about OPT
     def print_OPT(self):
         print(self.OPT)
-        print(tuple([ float(round(self.p[j], 2)) for j in self.OPT ]))
+        print(tuple([ float(round(self.p[j], 3)) for j in self.OPT ]))
         print(self.EOPT); print()
 
     # Generates a nonadaptive strategy that starts with a sorted permutation
@@ -202,8 +202,26 @@ class KOFN:
     # Prints information about the above strategy
     def print_one_shot(self):
         print(tuple(self.one_shot))
-        print(tuple([ float(round(self.p[j], 2)) for j in self.one_shot ]))
+        print(tuple([ float(round(self.p[j], 3)) for j in self.one_shot ]))
         print(self.one_shot_cost); print()
+
+    def check_starter_extremal(self, strategy):
+        if self.k == 1 or self.k == self.n: return True
+
+        crossover = max(self.k, self.k_bar)
+        starter = set(strategy[:crossover])
+
+        all_tests = set(range(self.n))
+        not_in_starter = all_tests.difference(starter)
+
+        upper = max(not_in_starter)
+        lower = min(not_in_starter)
+
+        return upper - lower + 1 == len(not_in_starter)
+
+    # DISPROVED
+    def check_OPT_starter_extremal(self):
+        return self.check_starter_extremal(self.OPT)
     
     # Checks if a strategy always uses extremal variables
     def check_strategy_extremal(self, strategy):
@@ -219,8 +237,8 @@ class KOFN:
         upper = max(not_in_starter)
         lower = min(not_in_starter)
 
-        # if upper - lower + 1 != len(not_in_starter):
-        #     return False
+        if upper - lower + 1 != len(not_in_starter):
+            return False
 
         for k in range(crossover, self.n):
             if strategy[k] == upper:
@@ -235,11 +253,8 @@ class KOFN:
     # Checks if OPT always uses extremal variables
     # DISPROVED
     def check_OPT_extremal(self):
-        res = self.check_strategy_extremal(self.OPT)
-        if res: return True
-
-        return False
-
+        return self.check_strategy_extremal(self.OPT)
+    
     # Checks if OPT only has variables on one side of 1/2
     def OPT_unordered_biased(self):
         threshold = max(self.k, self.k_bar)
@@ -274,7 +289,7 @@ class KOFN:
     # Prints information about the above strategy
     def print_sorted(self):
         print(tuple(self.sorted))
-        print(tuple([ float(round(self.p[j], 2)) for j in self.sorted ]))
+        print(tuple([ float(round(self.p[j], 3)) for j in self.sorted ]))
         print(self.sorted_cost); print()
 
     def find_products(self):
@@ -329,8 +344,8 @@ class KOFN:
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
 PRINT_PER = 1000
-K = 2
-N = 6
+K = 3
+N = 8
 
 # Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
@@ -343,16 +358,24 @@ if __name__ == '__main__':
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
+            kofn.brute_force_OPT()
 
-            diff = kofn.diff()
-            if diff > max_diff:
-                max_diff = diff
-                max_diff_instance = copy.deepcopy(kofn)
+            if not kofn.check_OPT_starter_extremal():
+                kofn.print_OPT()
+                exit(1)
+
+            # diff = kofn.diff()
+            # if diff > max_diff:
+            #     max_diff = diff
+            #     max_diff_instance = copy.deepcopy(kofn)
 
             if i % PRINT_PER == 0:
-                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
+                print(f"-------------[ {i} ]-------------")
+                # print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
             
             i += 1
+        
+        exit(0)
         
         for _ in range(GENERATION_COUNT):
             current_parent = copy.deepcopy(max_diff_instance)
