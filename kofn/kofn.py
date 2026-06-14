@@ -5,7 +5,9 @@
 import numpy as np
 import copy
 import itertools as it
+import functools as ft
 import sys
+import time
 
 # Returns a vector with numbers perturbed a small amount from 1
 def get_scale_vector(n):
@@ -152,8 +154,8 @@ class KOFN:
     
     # Brute force search for the optimal nonadaptive strategy
     def brute_force_OPT(self):
-        self.OPT = None
-        self.EOPT = float('inf')
+        self.bfOPT = None
+        self.bfEOPT = float('inf')
 
         # Prior to this index, we can sort the coins    
         threshold = max(self.k, self.k_bar)
@@ -168,12 +170,61 @@ class KOFN:
             for ending in it.permutations(remaining):
                 this_permutation = starting + list(ending)
                 this_permutation_cost = self.expected_cost(this_permutation)
-                if this_permutation_cost < self.EOPT:
-                    self.EOPT = this_permutation_cost
-                    self.OPT = this_permutation
+                if this_permutation_cost < self.bfEOPT:
+                    self.bfEOPT = this_permutation_cost
+                    self.bfOPT = this_permutation
 
+        self.bfOPT = tuple(self.bfOPT)
+
+    # TODO: this can be further optimized by DP-ing expected cost
+    def generate_OPT(self):
+        self.OPT = None
+        self.EOPT = float('inf')
+        ALL = 2 ** self.n - 1
+        crossover = max(self.k, self.k_bar)
+
+        # [subset, ordering]
+        # subset is given in bit array form
+        # ordering only has optimized values in the last n - |subset| positions
+        best_perm_given_subset = np.empty((2**self.n, self.n), dtype=int)
+
+        singletons = [ 1 << i for i in range(self.n) ]
+        for i, singleton in enumerate(singletons):
+            without_singleton = ~singleton
+            best_perm_given_subset[without_singleton][self.n - 1] = i
+            best_perm_given_subset[without_singleton][:self.n - 1] = [ j for j in range(self.n) if j != i ]
+        
+        for subset_size in range(self.n - 2, crossover - 1, -1):
+            for subset in it.combinations(singletons, subset_size):
+                subset = ft.reduce(lambda a, b: a | b, subset)
+
+                # Which test should come last in this subset?
+                best_idx = None
+                min_cost = float('inf')
+                for i, singleton in enumerate(singletons):
+                    if singleton & subset: continue
+                    subset_with_i = subset | singleton
+                    this_cost = self.expected_cost(best_perm_given_subset[subset_with_i])
+                    if this_cost < min_cost:
+                        best_idx = i
+                        min_cost = this_cost
+                
+                best_perm_given_subset[subset][:subset_size] = [ j for j in range(self.n) if singletons[j] & subset ]
+                best_perm_given_subset[subset][subset_size] = best_idx
+                best_perm_given_subset[subset][subset_size+1:] = best_perm_given_subset[subset | singletons[best_idx]][subset_size+1:]
+        
+        decreasing = self.k <= self.k_bar
+        for subset in it.combinations(singletons, crossover):
+            subset = ft.reduce(lambda a, b: a | b, subset)
+            best_perm_given_subset[subset][:crossover] = sorted(best_perm_given_subset[subset][:crossover], reverse=decreasing)
+        
+            this_cost = self.expected_cost(best_perm_given_subset[subset])
+            if this_cost < self.EOPT:
+                self.OPT = best_perm_given_subset[subset]
+                self.EOPT = this_cost
+        
         self.OPT = tuple(self.OPT)
-
+    
     # Prints out information about OPT
     def print_OPT(self):
         print(self.OPT)
@@ -329,8 +380,8 @@ class KOFN:
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
 PRINT_PER = 1000
-K = 2
-N = 6
+K = 4
+N = 9
 
 # Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
@@ -338,20 +389,41 @@ if __name__ == '__main__':
     max_diff = float('-inf')
     max_diff_instance = None
 
+    bf_minus_dp = []
+    bf_times = []
+    dp_times = []
+
     try:
         for _ in range(1_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
             kofn.init_distribution()
 
-            diff = kofn.diff()
+            bf_start = time.perf_counter()
+            kofn.brute_force_OPT()
+            bf_end = time.perf_counter()
+
+            dp_start = time.perf_counter()
+            kofn.generate_OPT()
+            dp_end = time.perf_counter()
+
+            dp_time = dp_end - dp_start
+            bf_time = bf_end - bf_start
+
+            bf_times.append(bf_time)
+            dp_times.append(dp_time)
+
+            bf_minus_dp.append(bf_time - dp_time)
+
+            diff = kofn.EOPT - kofn.bfEOPT
             if diff > max_diff:
                 max_diff = diff
                 max_diff_instance = copy.deepcopy(kofn)
 
             if i % PRINT_PER == 0:
-                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 5)}]-------------")
-            
+                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 6)}, {np.mean(bf_minus_dp)}]-------------")
+                print(np.mean(bf_time))
+                print(np.mean(dp_time))
             i += 1
         
         for _ in range(GENERATION_COUNT):
