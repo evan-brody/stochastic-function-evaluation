@@ -8,6 +8,7 @@ import itertools as it
 import functools as ft
 import sys
 import time
+import matplotlib.pyplot as plt
 
 # Returns a vector with numbers perturbed a small amount from 1
 def get_scale_vector(n):
@@ -117,6 +118,8 @@ class KOFN:
         self.pr_f_one = sum(ones_count[self.k:])
         self.pr_f_zero = sum(ones_count[:self.k])
 
+        assert abs(self.pr_f_one + self.pr_f_zero - 1.0) <= 1e-6
+
         return self.pr_f_zero, self.pr_f_one
 
     # Prints out a visual of the dynamic programming table used to
@@ -154,8 +157,8 @@ class KOFN:
     
     # Brute force search for the optimal nonadaptive strategy
     def brute_force_OPT(self):
-        self.bfOPT = None
-        self.bfEOPT = float('inf')
+        self.OPT = None
+        self.EOPT = float('inf')
 
         # Prior to this index, we can sort the coins    
         threshold = max(self.k, self.k_bar)
@@ -170,11 +173,11 @@ class KOFN:
             for ending in it.permutations(remaining):
                 this_permutation = starting + list(ending)
                 this_permutation_cost = self.expected_cost(this_permutation)
-                if this_permutation_cost < self.bfEOPT:
-                    self.bfEOPT = this_permutation_cost
-                    self.bfOPT = this_permutation
+                if this_permutation_cost < self.EOPT:
+                    self.EOPT = this_permutation_cost
+                    self.OPT = this_permutation
 
-        self.bfOPT = tuple(self.bfOPT)
+        self.OPT = tuple(self.OPT)
 
     # TODO: this can be further optimized by DP-ing expected cost
     def generate_OPT(self):
@@ -392,11 +395,28 @@ class KOFN:
             print(round(T, 2), end=' ')
         print()
 
+def el_plotto(data_points):
+    # Unpack coordinates into separate x and y sequences
+    x, y = zip(*data_points)
+
+    plt.figure(figsize=(8, 5))
+
+    # 's' controls size. 'marker' can be 'o' (circle) or ',' (pixel)
+    # alpha=0.7 prevents overlapping points from becoming too thick
+    plt.scatter(x, y, s=4, marker='o', color='blue', alpha=0.7)
+
+    # Customize the chart
+    plt.xlabel('X Axis')
+    plt.ylabel('Y Axis')
+    plt.grid(True, linestyle=':', alpha=0.5) # Thinner grid lines to match fine points
+
+    plt.show()
+
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
 PRINT_PER = 1000
-K = 4
-N = 9
+K = 3
+N = 7
 
 # Uses an evolutionary algorithm to optmize some value of interest
 if __name__ == '__main__':
@@ -408,44 +428,56 @@ if __name__ == '__main__':
     bf_times = []
     dp_times = []
 
+    sorted_vs_OPT = []
+
     try:
         for _ in range(1_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
+
             kofn.init_distribution()
+            kofn.find_pr_one_zero()
+            kofn.sorted_strategy()
             kofn.brute_force_OPT()
 
-            if not kofn.check_OPT_starter_extremal():
-                kofn.print_OPT()
-                exit(1)
+            sorted_vs_OPT.append((kofn.pr_f_one, kofn.sorted_cost - kofn.EOPT))
 
-            bf_start = time.perf_counter()
-            kofn.brute_force_OPT()
-            bf_end = time.perf_counter()
 
-            dp_start = time.perf_counter()
-            kofn.generate_OPT()
-            dp_end = time.perf_counter()
+            # kofn.brute_force_OPT()
 
-            dp_time = dp_end - dp_start
-            bf_time = bf_end - bf_start
+            # if not kofn.check_OPT_starter_extremal():
+            #     kofn.print_OPT()
+            #     exit(1)
 
-            bf_times.append(bf_time)
-            dp_times.append(dp_time)
+            # bf_start = time.perf_counter()
+            # kofn.brute_force_OPT()
+            # bf_end = time.perf_counter()
 
-            bf_minus_dp.append(bf_time - dp_time)
+            # dp_start = time.perf_counter()
+            # kofn.generate_OPT()
+            # dp_end = time.perf_counter()
 
-            diff = kofn.EOPT - kofn.bfEOPT
-            if diff > max_diff:
-                max_diff = diff
-                max_diff_instance = copy.deepcopy(kofn)
+            # dp_time = dp_end - dp_start
+            # bf_time = bf_end - bf_start
+
+            # bf_times.append(bf_time)
+            # dp_times.append(dp_time)
+
+            # bf_minus_dp.append(bf_time - dp_time)
+
+            # diff = kofn.EOPT - kofn.bfEOPT
+            # if diff > max_diff:
+            #     max_diff = diff
+            #     max_diff_instance = copy.deepcopy(kofn)
 
             if i % PRINT_PER == 0:
-                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 6)}, {np.mean(bf_minus_dp)}]-------------")
-                print(np.mean(bf_time))
-                print(np.mean(dp_time))
+                print(f"------- {i} -------")
+                # print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 6)}, {np.mean(bf_minus_dp)}]-------------")
+                # print(np.mean(bf_time))
+                # print(np.mean(dp_time))
             i += 1
         
+        el_plotto(sorted_vs_OPT)
         exit(0)
         
         for _ in range(GENERATION_COUNT):
