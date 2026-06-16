@@ -228,6 +228,75 @@ class KOFN:
         
         self.OPT = tuple(self.OPT)
     
+    def generate_OPT_fast(self):
+        n     = self.n
+        k     = self.k
+        k_bar = self.k_bar
+        p     = np.asarray(self.p, dtype=float)
+        size  = 1 << n
+        full  = size - 1
+        C          = max(k, k_bar)
+        decreasing = (k <= k_bar)
+        def _highbit(x):
+            x = x.copy()
+            for s in (1, 2, 4, 8, 16, 32):
+                x |= x >> s
+            return x - (x >> 1)
+        popc = np.zeros(size, dtype=np.int16)
+        tmp  = np.arange(size, dtype=np.int64)
+        for _ in range(n):
+            popc += (tmp & 1).astype(np.int16)
+            tmp >>= 1
+        pmf = np.zeros((size, n + 1), dtype=float)
+        pmf[0, 0] = 1.0
+        for b in range(n):
+            blk  = 1 << b
+            base = pmf[:blk]
+            dst  = pmf[blk:2 * blk]
+            dst[:]     = base * (1.0 - p[b])
+            dst[:, 1:] += base[:, :-1] * p[b]
+        alpha = np.zeros(size, dtype=float)
+        for m in range(n + 1):
+            lo = max(0, m - (k_bar - 1))
+            hi = min(m, k - 1)
+            if lo > hi:
+                continue
+            sel = (popc == m)
+            alpha[sel] = pmf[sel, lo:hi + 1].sum(axis=1)
+        B = np.empty(size, dtype=float)
+        B[0] = alpha[0]
+        for m in range(1, n + 1):
+            Sm = np.nonzero(popc == m)[0]
+            parent = (Sm & (Sm - 1)) if decreasing else (Sm - _highbit(Sm))
+            B[Sm] = alpha[Sm] + B[parent]
+        V   = np.empty(size, dtype=float)
+        V[full] = 0.0
+        nxt = np.full(size, -1, dtype=np.int32)
+        bits = (1 << np.arange(n)).astype(np.int64)
+        for m in range(n - 1, C - 1, -1):
+            Sm    = np.nonzero(popc == m)[0]
+            child = Sm[:, None] | bits[None, :]
+            cand  = V[child]
+            cand[(Sm[:, None] & bits[None, :]) != 0] = np.inf
+            j = cand.argmin(axis=1)
+            V[Sm]   = alpha[Sm] + cand[np.arange(len(Sm)), j]
+            nxt[Sm] = j
+        SC     = np.nonzero(popc == C)[0]
+        parent = (SC & (SC - 1)) if decreasing else (SC - _highbit(SC))
+        totals = B[parent] + V[SC]
+        bi     = int(totals.argmin())
+        Sstar  = int(SC[bi])
+        self.EOPT = float(totals[bi])
+        blk = [i for i in range(n) if (Sstar >> i) & 1]
+        order = blk[::-1] if decreasing else blk
+        order = list(order)
+        S = Sstar
+        while S != full:
+            i = int(nxt[S])
+            order.append(i)
+            S |= (1 << i)
+        self.OPT = tuple(order)
+    
     # Prints out information about OPT
     def print_OPT(self):
         print(self.OPT)
@@ -372,10 +441,12 @@ class KOFN:
     
     # Used in the evolutionary algorithm in main, which seeks to maximize the return value of this function
     def diff(self):
-        self.generate_one_shot()
         self.brute_force_OPT()
+        bfOPT = self.EOPT
+        self.generate_OPT_fast()
+        self.sorted_strategy()
 
-        return self.one_shot_cost - self.EOPT
+        return self.EOPT - bfOPT
     
     # Prints information relevant to the evolutionary algorithm in main
     def diff_info(self):
@@ -414,8 +485,8 @@ def el_plotto(data_points):
 
 GENERATION_SIZE = 1000
 GENERATION_COUNT = 10_000
-PRINT_PER = 1000
-K = 3
+PRINT_PER = 1
+K = 2
 N = 7
 
 # Uses an evolutionary algorithm to optmize some value of interest
@@ -434,45 +505,16 @@ if __name__ == '__main__':
         for _ in range(1_000_000):
             # K = np.random.randint(N) + 1
             kofn = KOFN(K, N)
-
             kofn.init_distribution()
-            kofn.find_pr_one_zero()
-            kofn.sorted_strategy()
-            kofn.brute_force_OPT()
 
-            sorted_vs_OPT.append((kofn.pr_f_one, kofn.sorted_cost - kofn.EOPT))
-
-
-            # kofn.brute_force_OPT()
-
-            # if not kofn.check_OPT_starter_extremal():
-            #     kofn.print_OPT()
-            #     exit(1)
-
-            # bf_start = time.perf_counter()
-            # kofn.brute_force_OPT()
-            # bf_end = time.perf_counter()
-
-            # dp_start = time.perf_counter()
-            # kofn.generate_OPT()
-            # dp_end = time.perf_counter()
-
-            # dp_time = dp_end - dp_start
-            # bf_time = bf_end - bf_start
-
-            # bf_times.append(bf_time)
-            # dp_times.append(dp_time)
-
-            # bf_minus_dp.append(bf_time - dp_time)
-
-            # diff = kofn.EOPT - kofn.bfEOPT
-            # if diff > max_diff:
-            #     max_diff = diff
-            #     max_diff_instance = copy.deepcopy(kofn)
+            diff = kofn.diff()
+            if diff > max_diff:
+                max_diff = diff
+                max_diff_instance = copy.deepcopy(kofn)
 
             if i % PRINT_PER == 0:
-                print(f"------- {i} -------")
-                # print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 6)}, {np.mean(bf_minus_dp)}]-------------")
+                # print(f"------- {i} -> {np.mean(bf_minus_dp)} -------")
+                print(f"-------------[K = {max_diff_instance.k}, {i} -> {round(max_diff, 6)}]-------------")
                 # print(np.mean(bf_time))
                 # print(np.mean(dp_time))
             i += 1
